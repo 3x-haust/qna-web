@@ -58,9 +58,9 @@ export async function ensureGitHubArchiveRepository(
     headers: requestHeaders,
     body: JSON.stringify({
       name: repo,
-      private: true,
+      private: false,
       auto_init: true,
-      description: "Encrypted QnA session archives managed by GitDB",
+      description: "Public plaintext QnA session archives managed by GitDB",
     }),
     cache: "no-store",
   });

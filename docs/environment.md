@@ -28,11 +28,11 @@ GitHub fine-grained personal access token은 다음처럼 만든다.
 2. Repository permissions에서 `Contents: Read and write`를 허용한다.
 3. `Metadata: Read` 기본 권한을 유지한다.
 
-지정한 저장소가 없으면 첫 archive 시 서버가 private 저장소를 만든 뒤 GitDB manifest와 `session_archives` 테이블을 초기화한다. 저장소 자동 생성을 사용하려면 token에 repository creation 권한이 필요하다.
+지정한 저장소가 없으면 첫 archive 시 서버가 public 저장소를 만든 뒤 GitDB manifest와 `session_archives` 테이블을 초기화한다. 저장소 자동 생성을 사용하려면 token에 repository creation 권한이 필요하다. 세션 제목, 질문, 작성자 이름을 포함한 archive payload는 암호화하지 않으며 누구나 저장소에서 읽을 수 있다.
 
 토큰은 반드시 `GITDB_GITHUB_TOKEN`처럼 `NEXT_PUBLIC_` 접두사 없이 저장한다. 브라우저는 종료된 session snapshot만 `/api/archive`로 보내고, Route Handler가 서버 환경변수의 token으로 GitHub에 기록한다. token과 Mirim secret은 브라우저 JavaScript, localStorage, sessionStorage에 전달되지 않는다.
 
-archive는 `qna/v1/manifest.json`과 `qna/v1/segments/*.json`에 읽을 수 있는 JSON/SQL 형식으로 저장한다. GitHub Contents API의 최신 SHA를 사용하며 branch 충돌이 발생하면 최대 5회 다시 읽고 저장한다.
+archive는 `qna/v1/manifest.json`과 `qna/v1/log/*.json`에 읽을 수 있는 JSON/SQL 형식으로 저장한다. GitHub Contents API의 최신 SHA를 사용하며 branch 충돌이 발생하면 최대 5회 다시 읽고 저장한다.
 
 ## 실시간 세션 signaling
 

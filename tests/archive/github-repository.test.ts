@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ensureGitHubArchiveRepository } from "@/archive/github-repository";
 
 describe("GitDB archive repository provisioning", () => {
-  it("creates a private archive repository when it is missing", async () => {
+  it("creates a public plaintext archive repository when it is missing", async () => {
     const github = vi
       .fn()
       .mockResolvedValueOnce(Response.json({ login: "teacher" }))
@@ -27,9 +27,9 @@ describe("GitDB archive repository provisioning", () => {
         method: "POST",
         body: JSON.stringify({
           name: "qna-archive",
-          private: true,
+          private: false,
           auto_init: true,
-          description: "Encrypted QnA session archives managed by GitDB",
+          description: "Public plaintext QnA session archives managed by GitDB",
         }),
       }),
     );

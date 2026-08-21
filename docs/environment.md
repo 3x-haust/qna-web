@@ -19,7 +19,7 @@
 - `GITDB_GITHUB_OWNER`: 보관 저장소 소유자
 - `GITDB_GITHUB_REPO`: 완료된 질의를 저장할 전용 저장소, 기본값 `qna-archive`
 - `GITDB_GITHUB_BRANCH`: 기본값 `main`
-- `GITDB_GITHUB_PREFIX`: 기본값 `qna/v1`
+- `GITDB_GITHUB_PREFIX`: 기본값 `gitdb/v1`
 - `GITDB_GITHUB_TOKEN`: 저장소 쓰기용 fine-grained personal access token
 
 GitHub fine-grained personal access token은 다음처럼 만든다.
@@ -32,7 +32,7 @@ GitHub fine-grained personal access token은 다음처럼 만든다.
 
 토큰은 반드시 `GITDB_GITHUB_TOKEN`처럼 `NEXT_PUBLIC_` 접두사 없이 저장한다. 브라우저는 종료된 session snapshot만 `/api/archive`로 보내고, Route Handler가 서버 환경변수의 token으로 GitHub에 기록한다. token과 Mirim secret은 브라우저 JavaScript, localStorage, sessionStorage에 전달되지 않는다.
 
-archive는 `qna/v1/manifest.json`과 `qna/v1/log/*.json`에 읽을 수 있는 JSON/SQL 형식으로 저장한다. GitHub Contents API의 최신 SHA를 사용하며 branch 충돌이 발생하면 최대 5회 다시 읽고 저장한다.
+archive는 GitDB의 정식 plaintext 구조인 `gitdb/v1/manifest.json`, `gitdb/v1/log/*.json`, `gitdb/v1/snapshot.json`, `gitdb/v1/session_archives/{schema.json,pages.json,pages/*.json,indexes.json}`에 저장한다. mutation log와 manifest가 원본 기록이며 page snapshot은 사람이 읽을 수 있는 현재 테이블 상태다.
 
 ## 실시간 세션 signaling
 

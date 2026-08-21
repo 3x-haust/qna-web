@@ -25,8 +25,10 @@ describe("ended-only GitDB archival", () => {
     expect(writer).toHaveBeenCalledTimes(1);
     expect(writer).toHaveBeenCalledWith(
       expect.objectContaining({
-        sessionId: "session-1",
-        payload: expect.stringContaining("분수의 덧셈"),
+        session: expect.objectContaining({
+          id: "session-1",
+          title: "분수의 덧셈",
+        }),
       }),
     );
   });

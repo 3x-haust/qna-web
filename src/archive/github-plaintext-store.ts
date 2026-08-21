@@ -2,6 +2,7 @@ import type {
   GitDbManifest,
   GitDbStore,
   PersistedMutation,
+  SqlRow,
 } from "@3xhaust/gitdb";
 import { z } from "zod";
 
@@ -19,6 +20,12 @@ type GitHubFile = {
 };
 
 type SegmentId = GitDbManifest["logSegments"][number];
+type VisibleSnapshot = Parameters<
+  NonNullable<GitDbStore["writeVisibleSnapshot"]>
+>[0];
+type VisibleTable = VisibleSnapshot["tables"][number];
+
+const visiblePageSizeBytes = 4 * 1024 * 1024;
 
 const githubFileSchema = z.object({
   content: z.string(),
@@ -67,12 +74,17 @@ export class GitHubPlaintextStore implements GitDbStore {
     );
   }
 
-  async writeArchiveRecord(sessionId: string, payload: string): Promise<void> {
-    await this.writeFile(
-      `data/session_archives/${sessionId}.json`,
-      payload,
-      `gitdb: materialize archive ${sessionId}`,
-    );
+  async writeVisibleSnapshot(snapshot: VisibleSnapshot): Promise<void> {
+    for (const table of snapshot.tables) {
+      await this.writeVisibleTable(table);
+    }
+    if (snapshot.sequence !== undefined) {
+      await this.writeFile(
+        "snapshot.json",
+        stringify({ sequence: snapshot.sequence }),
+        `gitdb: sync plaintext snapshot ${snapshot.sequence}`,
+      );
+    }
   }
 
   async appendMutation(mutation: PersistedMutation): Promise<SegmentId> {
@@ -111,6 +123,36 @@ export class GitHubPlaintextStore implements GitDbStore {
         "utf8",
       ),
     };
+  }
+
+  private async writeVisibleTable(table: VisibleTable): Promise<void> {
+    const pages = paginate(table.rows);
+    await this.writeFile(
+      `${table.name}/schema.json`,
+      stringify({ columns: table.columns, name: table.name }),
+      `gitdb: sync ${table.name} schema`,
+    );
+    for (const [index, rows] of pages.entries()) {
+      await this.writeFile(
+        `${table.name}/pages/${pageName(index)}`,
+        stringify(rows),
+        `gitdb: sync ${table.name} page ${index}`,
+      );
+    }
+    await this.writeFile(
+      `${table.name}/pages.json`,
+      stringify({
+        pages: pages.map((_, index) => pageName(index)),
+        rowCount: table.rows.length,
+        version: 1,
+      }),
+      `gitdb: sync ${table.name} pages`,
+    );
+    await this.writeFile(
+      `${table.name}/indexes.json`,
+      stringify(indexArtifact(table)),
+      `gitdb: sync ${table.name} indexes`,
+    );
   }
 
   private async writeFile(
@@ -165,4 +207,52 @@ function isSegmentId(value: string): value is SegmentId {
 function toSegmentId(value: string): SegmentId {
   if (!isSegmentId(value)) throw new Error("GitDB segment id가 비어 있습니다");
   return value;
+}
+
+function stringify(value: unknown): string {
+  return JSON.stringify(value, null, 2);
+}
+
+function pageName(index: number): string {
+  return `${index.toString().padStart(6, "0")}.json`;
+}
+
+function paginate(rows: readonly SqlRow[]): readonly (readonly SqlRow[])[] {
+  const pages: Array<readonly SqlRow[]> = [];
+  let current: readonly SqlRow[] = [];
+  for (const row of rows) {
+    const candidate = [...current, row];
+    if (
+      current.length > 0 &&
+      Buffer.byteLength(stringify(candidate), "utf8") > visiblePageSizeBytes
+    ) {
+      pages.push(current);
+      current = [row];
+    } else {
+      current = candidate;
+    }
+  }
+  if (current.length > 0) pages.push(current);
+  return pages;
+}
+
+function indexArtifact(table: VisibleTable): {
+  readonly columns: Readonly<Record<string, Readonly<Record<string, number[]>>>>;
+  readonly rowCount: number;
+  readonly version: 1;
+} {
+  const columns: Record<string, Record<string, number[]>> = {};
+  for (const column of table.columns) columns[column] = {};
+  table.rows.forEach((row, rowIndex) => {
+    for (const column of table.columns) {
+      const value = row[column];
+      const values = columns[column];
+      if (value === undefined || values === undefined) continue;
+      const key = value === null ? "null:" : `${typeof value}:${String(value)}`;
+      const indexes = values[key] ?? [];
+      indexes.push(rowIndex);
+      values[key] = indexes;
+    }
+  });
+  return { columns, rowCount: table.rows.length, version: 1 };
 }

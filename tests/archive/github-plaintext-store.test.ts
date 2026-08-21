@@ -1,3 +1,4 @@
+import { GitDbEngine } from "@3xhaust/gitdb";
 import { describe, expect, it, vi } from "vitest";
 
 import { GitHubPlaintextStore } from "@/archive/github-plaintext-store";
@@ -6,42 +7,107 @@ const config = {
   owner: "teacher",
   repo: "qna",
   branch: "main",
-  prefix: "qna/v1",
+  prefix: "gitdb/v1",
   token: "token",
 };
 
+function createGitHubFake() {
+  const files = new Map<string, string>();
+  const github = vi.fn(
+    async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input
+            : input.url,
+      );
+      const path = decodeURIComponent(
+        url.pathname.split("/contents/")[1] ?? "",
+      );
+      if (init?.method !== "PUT") {
+        const content = files.get(path);
+        return content === undefined
+          ? Response.json({ message: "Not Found" }, { status: 404 })
+          : Response.json({
+              content: Buffer.from(content).toString("base64"),
+              sha: `sha-${path}`,
+            });
+      }
+      const body = JSON.parse(String(init.body));
+      files.set(
+        path,
+        Buffer.from(String(body.content), "base64").toString("utf8"),
+      );
+      return Response.json({ content: { sha: `sha-${path}` } });
+    },
+  );
+  return { files, github };
+}
+
 describe("plaintext GitDB GitHub store", () => {
-  it("writes each archive as a materialized JSON data file", async () => {
-    const payload = JSON.stringify({
-      id: "session-1",
-      title: "분수의 덧셈",
-      questions: [{ text: "왜 5/6인가요?" }],
-    });
-    const github = vi
-      .fn()
-      .mockResolvedValueOnce(Response.json({ message: "Not Found" }, { status: 404 }))
-      .mockResolvedValueOnce(Response.json({ content: { sha: "created" } }));
+  it("writes canonical GitDB visible snapshot files", async () => {
+    const { files, github } = createGitHubFake();
     const store = new GitHubPlaintextStore(config, github);
 
-    await store.writeArchiveRecord("session-1", payload);
+    await store.writeVisibleSnapshot({
+      sequence: 3,
+      tables: [
+        {
+          name: "session_archives",
+          columns: ["session_id", "title"],
+          rows: [
+            {
+              session_id: "session-1",
+              title: "분수의 덧셈",
+            },
+          ],
+        },
+      ],
+    });
 
-    expect(github.mock.calls[0]?.[0]).toContain(
-      "/qna/v1/data/session_archives/session-1.json",
+    expect([...files.keys()].sort()).toEqual([
+      "gitdb/v1/session_archives/indexes.json",
+      "gitdb/v1/session_archives/pages.json",
+      "gitdb/v1/session_archives/pages/000000.json",
+      "gitdb/v1/session_archives/schema.json",
+      "gitdb/v1/snapshot.json",
+    ]);
+    expect(
+      JSON.parse(
+        files.get("gitdb/v1/session_archives/pages/000000.json") ?? "null",
+      ),
+    ).toEqual([
+      {
+        session_id: "session-1",
+        title: "분수의 덧셈",
+      },
+    ]);
+  });
+
+  it("lets the GitDB engine materialize committed table rows", async () => {
+    const { files, github } = createGitHubFake();
+    const store = new GitHubPlaintextStore(config, github);
+    const database = await GitDbEngine.open({ store, durability: "sync" });
+
+    await database.execute(
+      "CREATE TABLE IF NOT EXISTS session_archives (session_id STRING, title STRING)",
     );
-    const put = github.mock.calls[1];
-    const init = put?.[1];
-    if (!init || typeof init.body !== "string") throw new Error("missing GitHub PUT");
-    const body = JSON.parse(init.body);
-    if (
-      typeof body !== "object" ||
-      body === null ||
-      !("content" in body) ||
-      typeof body.content !== "string"
-    ) {
-      throw new Error("missing materialized archive content");
-    }
-    const decoded = Buffer.from(body.content, "base64").toString("utf8");
-    expect(JSON.parse(decoded)).toEqual(JSON.parse(payload));
+    await database.execute(
+      "INSERT INTO session_archives (session_id, title) VALUES ('session-1', '분수의 덧셈')",
+    );
+
+    expect(database.getLastVisibleSnapshotError()).toBeUndefined();
+    expect(
+      JSON.parse(
+        files.get("gitdb/v1/session_archives/pages/000000.json") ?? "null",
+      ),
+    ).toEqual([
+      {
+        session_id: "session-1",
+        title: "분수의 덧셈",
+      },
+    ]);
   });
 
   it("writes mutation SQL as readable JSON", async () => {
@@ -67,10 +133,10 @@ describe("plaintext GitDB GitHub store", () => {
 
     expect(segment).toBe("00000000000000000001");
     expect(github.mock.calls[0]?.[0]).toContain(
-      "/qna/v1/log/00000000000000000001.json",
+      "/gitdb/v1/log/00000000000000000001.json",
     );
     expect(github.mock.calls[2]?.[0]).toContain(
-      "/qna/v1/log/00000000000000000001.json",
+      "/gitdb/v1/log/00000000000000000001.json",
     );
     expect(restored).toEqual([mutation]);
     const put = github.mock.calls[1];

@@ -3,7 +3,9 @@ import { expect, test } from "@playwright/test";
 test("teacher is authoritative over a real DataChannel session", async ({ browser }) => {
   const teacherContext = await browser.newContext();
   const linkedStudentContext = await browser.newContext();
-  const codedStudentContext = await browser.newContext();
+  const codedStudentContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+  });
   const identityStudentContext = await browser.newContext();
   await identityStudentContext.route(
     "**/api/mirim/api/v1/oauth/authorize**",
@@ -191,10 +193,33 @@ test("teacher is authoritative over a real DataChannel session", async ({ browse
       .filter({ hasText: "1/2 + 1/3이 왜 5/6인가요?" }),
   ).toHaveCount(1);
 
-  await codedStudent
-    .getByRole("button", { name: "1/2 + 1/3이 왜 5/6인가요? 추천" })
-    .click();
+  const codedStudentVote = codedStudent.getByRole("button", {
+    name: "1/2 + 1/3이 왜 5/6인가요? 추천",
+  });
+  await codedStudentVote.click();
+  await expect(codedStudentVote).toHaveAttribute("aria-pressed", "true");
+  await expect(codedStudentVote).toHaveCSS("background-color", "rgb(0, 129, 86)");
+  await codedStudent.screenshot({
+    path: "test-results/question-vote-active.png",
+    fullPage: true,
+  });
   await expect(teacher.getByTestId("question-vote-count")).toHaveText("1");
+
+  await linkedStudent.getByLabel("질문 작성", { exact: true }).focus();
+  await linkedStudent.getByTestId("question-remaining-count").click();
+  await expect(linkedStudent.getByTestId("question-composer")).toHaveAttribute(
+    "data-expanded",
+    "true",
+  );
+  await linkedStudent.screenshot({
+    path: "test-results/question-composer-inside-click.png",
+    fullPage: true,
+  });
+  await linkedStudent.getByRole("heading", { name: "분수의 덧셈" }).click();
+  await expect(linkedStudent.getByTestId("question-composer")).toHaveAttribute(
+    "data-expanded",
+    "false",
+  );
 
   await teacher.screenshot({ path: "test-results/p2p-teacher.png", fullPage: true });
   await linkedStudent.screenshot({ path: "test-results/p2p-student.png", fullPage: true });

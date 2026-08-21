@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { SessionState } from "@/domain/session";
 import {
@@ -35,6 +35,7 @@ type QuestionFeedProps = {
   ) => void;
   onVote?: (questionId: string) => void;
   onRequestRealName?: () => void;
+  participantId?: string;
   realName?: string;
 };
 
@@ -43,11 +44,13 @@ export function QuestionFeed({
   onSubmit,
   onVote,
   onRequestRealName,
+  participantId,
   realName,
 }: QuestionFeedProps) {
   const [sort, setSort] = useState<"popular" | "recent">("popular");
   const submitLocked = useRef(false);
   const draftCommandId = useRef(crypto.randomUUID());
+  const composerRef = useRef<HTMLFormElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [text, setText] = useState("");
   const [anonymous, setAnonymous] = useState(true);
@@ -91,18 +94,28 @@ export function QuestionFeed({
     textarea.style.height = `${Math.max(72, textarea.scrollHeight)}px`;
   }, [expanded, text]);
 
+  useEffect(() => {
+    if (!expanded) return;
+    const collapseOnOutsidePointer = (event: PointerEvent) => {
+      const composer = composerRef.current;
+      if (event.target instanceof Node && composer && !composer.contains(event.target)) {
+        setExpanded(false);
+      }
+    };
+    document.addEventListener("pointerdown", collapseOnOutsidePointer, true);
+    return () => {
+      document.removeEventListener("pointerdown", collapseOnOutsidePointer, true);
+    };
+  }, [expanded]);
+
   return (
     <Feed data-testid="question-feed">
       {onSubmit && (
         <Composer
+          ref={composerRef}
           $expanded={expanded}
           data-testid="question-composer"
           data-expanded={expanded}
-          onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) {
-              setExpanded(false);
-            }
-          }}
           onSubmit={(event) => {
             event.preventDefault();
             submit();
@@ -210,7 +223,11 @@ export function QuestionFeed({
         </EmptyState>
       ) : (
         <QuestionList>
-          {sortedQuestions.map((question) => (
+          {sortedQuestions.map((question) => {
+            const voted =
+              participantId !== undefined &&
+              question.likedBy.includes(participantId);
+            return (
             <QuestionCard key={question.id}>
               <CardHeader>
                 <Author>
@@ -225,8 +242,10 @@ export function QuestionFeed({
                 {onVote ? (
                   <Vote
                     type="button"
+                    $active={voted}
                     $interactive
                     aria-label={`${question.text} 추천`}
+                    aria-pressed={voted}
                     onClick={() => onVote(question.id)}
                   >
                     <span data-testid="question-vote-count">
@@ -235,7 +254,7 @@ export function QuestionFeed({
                     <Image src="/assets/thumb.svg" alt="" width={18} height={18} />
                   </Vote>
                 ) : (
-                  <Vote as="span" $interactive={false}>
+                  <Vote as="span" $active={false} $interactive={false}>
                     <span data-testid="question-vote-count">
                       {question.likedBy.length}
                     </span>
@@ -245,7 +264,8 @@ export function QuestionFeed({
               </CardHeader>
               <QuestionText>{question.text}</QuestionText>
             </QuestionCard>
-          ))}
+            );
+          })}
         </QuestionList>
       )}
     </Feed>

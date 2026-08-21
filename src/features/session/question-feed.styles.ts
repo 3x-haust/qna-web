@@ -144,13 +144,14 @@ export const AuthorMeta = styled.span`
   }
 `;
 
-export const Vote = styled.button<{ $interactive: boolean }>`
+export const Vote = styled.button<{ $active: boolean; $interactive: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
   border-radius: ${({ theme }) => theme.radius.pill};
-  background: ${({ theme }) => theme.colors.gray500};
+  background: ${({ $active, theme }) =>
+    $active ? theme.colors.primary : theme.colors.gray500};
   color: ${({ theme }) => theme.colors.white};
   cursor: ${({ $interactive }) => ($interactive ? "pointer" : "default")};
   font-size: 14px;

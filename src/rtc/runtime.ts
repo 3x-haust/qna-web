@@ -129,6 +129,7 @@ export class HostRuntime {
 export class StudentRuntime {
   private peer: RTCPeerConnection | null = null;
   private channel: RTCDataChannel | null = null;
+  private participantId: string | null = null;
 
   constructor(
     private readonly onMessage: (message: WireMessage) => void,
@@ -140,6 +141,7 @@ export class StudentRuntime {
     if (offer.kind !== "offer") {
       throw new Error("올바른 세션 연결 정보가 아닙니다");
     }
+    this.participantId = offer.connectionId;
     const peer = new RTCPeerConnection({ iceServers: [] });
     this.peer = peer;
     peer.addEventListener(
@@ -202,8 +204,13 @@ export class StudentRuntime {
     return this.channel?.readyState === "open";
   }
 
+  getParticipantId(): string | null {
+    return this.participantId;
+  }
+
   close(): void {
     this.channel?.close();
     this.peer?.close();
+    this.participantId = null;
   }
 }

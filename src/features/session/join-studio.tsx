@@ -37,6 +37,7 @@ export function JoinStudio() {
   const [enteredCode, setEnteredCode] = useState("");
   const sessionCode = enteredCode || invitedCode;
   const [error, setError] = useState("");
+  const [participantId, setParticipantId] = useState<string>();
   const { session, connectionStatus, replaceSnapshot } = useSessionStore();
 
   useEffect(() => () => runtime.current?.close(), []);
@@ -61,6 +62,11 @@ export function JoinStudio() {
         const join = await requestSessionJoin(code);
         const offer = await waitForOffer(code, join.id, join.joinToken);
         const answerSignal = await student.acceptOffer(offer);
+        const connectedParticipantId = student.getParticipantId();
+        if (!connectedParticipantId) {
+          throw new Error("학생 참여자 정보를 확인하지 못했습니다");
+        }
+        setParticipantId(connectedParticipantId);
         await publishAnswer(code, join.id, join.joinToken, answerSignal);
         setError("");
       } catch (reason) {
@@ -110,6 +116,7 @@ export function JoinStudio() {
           <Muted>궁금한 내용을 질문하거나 친구가 남긴 질문을 함께 확인해 보세요.</Muted>
           <QuestionFeed
             questions={session.questions}
+            participantId={participantId}
             realName={user?.nickname}
             onRequestRealName={() => {
               void login().catch(() => {

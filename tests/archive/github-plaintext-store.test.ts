@@ -11,6 +11,39 @@ const config = {
 };
 
 describe("plaintext GitDB GitHub store", () => {
+  it("writes each archive as a materialized JSON data file", async () => {
+    const payload = JSON.stringify({
+      id: "session-1",
+      title: "분수의 덧셈",
+      questions: [{ text: "왜 5/6인가요?" }],
+    });
+    const github = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ message: "Not Found" }, { status: 404 }))
+      .mockResolvedValueOnce(Response.json({ content: { sha: "created" } }));
+    const store = new GitHubPlaintextStore(config, github);
+
+    await store.writeArchiveRecord("session-1", payload);
+
+    expect(github.mock.calls[0]?.[0]).toContain(
+      "/qna/v1/data/session_archives/session-1.json",
+    );
+    const put = github.mock.calls[1];
+    const init = put?.[1];
+    if (!init || typeof init.body !== "string") throw new Error("missing GitHub PUT");
+    const body = JSON.parse(init.body);
+    if (
+      typeof body !== "object" ||
+      body === null ||
+      !("content" in body) ||
+      typeof body.content !== "string"
+    ) {
+      throw new Error("missing materialized archive content");
+    }
+    const decoded = Buffer.from(body.content, "base64").toString("utf8");
+    expect(JSON.parse(decoded)).toEqual(JSON.parse(payload));
+  });
+
   it("writes mutation SQL as readable JSON", async () => {
     const mutation = {
       sequence: 1,

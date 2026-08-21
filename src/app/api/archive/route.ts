@@ -1,5 +1,6 @@
 import { handleArchiveRequest } from "@/archive/archive-endpoint";
 import { createGitDbArchiveWriter } from "@/archive/gitdb-writer";
+import { after } from "next/server";
 
 export async function POST(request: Request): Promise<Response> {
   const session = await request.json();
@@ -10,5 +11,5 @@ export async function POST(request: Request): Promise<Response> {
     prefix: process.env.GITDB_GITHUB_PREFIX ?? "qna/v1",
     token: process.env.GITDB_GITHUB_TOKEN ?? "",
   });
-  return handleArchiveRequest(session, writer);
+  return handleArchiveRequest(session, writer, after);
 }

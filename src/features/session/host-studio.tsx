@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
-import { archiveSession } from "@/archive/archive-client";
+import { queueArchiveSession } from "@/archive/archive-client";
 import { QuestionFeed } from "@/features/session/question-feed";
 import { HostRuntime } from "@/rtc/runtime";
 import {
@@ -32,6 +33,7 @@ import {
 import { Field, PrimaryButton } from "@/ui/primitives";
 
 export function HostStudio() {
+  const router = useRouter();
   const runtime = useRef<HostRuntime | null>(null);
   const signaling = useRef<SignalingSession | null>(null);
   const signalingAbort = useRef<AbortController | null>(null);
@@ -43,7 +45,6 @@ export function HostStudio() {
   const [notice, setNotice] = useState("");
   const [showShare, setShowShare] = useState(false);
   const [showEnd, setShowEnd] = useState(false);
-  const [archiveMessage, setArchiveMessage] = useState("");
   const { session, startHost, finish } = useSessionStore();
 
   useEffect(
@@ -174,16 +175,11 @@ export function HostStudio() {
     setShowEnd(true);
   };
 
-  const archive = async () => {
+  const archive = () => {
     const current = useSessionStore.getState().session;
     if (!current) return;
-    try {
-      await archiveSession(current);
-      setArchiveMessage("세션 기록을 보관했습니다");
-      setShowEnd(false);
-    } catch {
-      setError("세션 기록을 보관하지 못했습니다");
-    }
+    queueArchiveSession(current);
+    router.replace("/home");
   };
 
   return (
@@ -223,7 +219,6 @@ export function HostStudio() {
         )}
         {error && <ErrorText role="alert">{error}</ErrorText>}
         {notice && <Toast role="status">{notice}</Toast>}
-        {archiveMessage && <p role="status">{archiveMessage}</p>}
         {showShare && (
           <DialogOverlay
             onMouseDown={(event) => {
@@ -269,7 +264,7 @@ export function HostStudio() {
                 <PrimaryButton type="button" onClick={() => setShowEnd(false)}>
                   취소
                 </PrimaryButton>
-                <PrimaryButton type="button" onClick={() => void archive()}>
+                <PrimaryButton type="button" onClick={archive}>
                   종료하고 보관
                 </PrimaryButton>
               </DialogActions>

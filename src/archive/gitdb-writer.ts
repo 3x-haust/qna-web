@@ -35,5 +35,6 @@ export function createGitDbArchiveWriter(config: GitHubConfig): ArchiveWriter {
     await database.execute(
       `INSERT INTO session_archives (session_id, payload_json) VALUES ('${sql(sessionId)}', '${sql(payload)}')`,
     );
+    await store.writeArchiveRecord(sessionId, payload);
   };
 }

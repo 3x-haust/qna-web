@@ -2,6 +2,8 @@ import type { ArchiveWriter } from "@/archive/archive";
 import { archiveEndedSession } from "@/archive/archive";
 import { z } from "zod";
 
+type ArchiveScheduler = (task: () => Promise<void>) => void;
+
 const sessionSchema = z.object({
   id: z.string().min(1),
   teacherId: z.string().min(1),
@@ -22,14 +24,21 @@ const sessionSchema = z.object({
   ),
 });
 
-export async function handleArchiveRequest(
+export function handleArchiveRequest(
   input: unknown,
   writer: ArchiveWriter,
-): Promise<Response> {
+  schedule: ArchiveScheduler,
+): Response {
   try {
     const session = sessionSchema.parse(input);
-    await archiveEndedSession(session, writer);
-    return Response.json({ archived: true });
+    if (session.phase !== "ended" || !session.endedAt) {
+      return Response.json(
+        { message: "세션 기록을 보관하지 못했습니다" },
+        { status: 400 },
+      );
+    }
+    schedule(() => archiveEndedSession(session, writer));
+    return Response.json({ accepted: true }, { status: 202 });
   } catch (error) {
     return Response.json(
       { message: "세션 기록을 보관하지 못했습니다" },

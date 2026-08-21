@@ -1,14 +1,20 @@
 import { expect, test } from "@playwright/test";
 
-test("GitDB archive is written only after session end confirmation", async ({ page }) => {
+test("archive returns home immediately while GitDB writes in background", async ({
+  page,
+}) => {
   const writes: Array<{ url: string; body: string | null }> = [];
+  const archiveRequested = Promise.withResolvers<void>();
+  const archiveResponse = Promise.withResolvers<void>();
   await page.route("**/api/archive", async (route) => {
     const request = route.request();
     writes.push({ url: request.url(), body: request.postData() });
+    archiveRequested.resolve();
+    await archiveResponse.promise;
     await route.fulfill({
-      status: 200,
+      status: 202,
       contentType: "application/json",
-      body: JSON.stringify({ archived: true }),
+      body: JSON.stringify({ accepted: true }),
     });
   });
 
@@ -22,8 +28,13 @@ test("GitDB archive is written only after session end confirmation", async ({ pa
   expect(writes).toHaveLength(0);
   await page.getByRole("button", { name: "종료하고 보관" }).click();
 
-  await expect(page.getByRole("status")).toBeVisible();
+  await archiveRequested.promise;
+  await expect(page).toHaveURL("/home");
   expect(writes).toHaveLength(1);
   expect(writes[0]?.body).toContain("분수의 덧셈");
-  await page.screenshot({ path: "test-results/archive-success.png", fullPage: true });
+  archiveResponse.resolve();
+  await page.screenshot({
+    path: "test-results/archive-immediate-home.png",
+    fullPage: true,
+  });
 });

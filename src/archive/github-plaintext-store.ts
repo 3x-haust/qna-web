@@ -67,6 +67,14 @@ export class GitHubPlaintextStore implements GitDbStore {
     );
   }
 
+  async writeArchiveRecord(sessionId: string, payload: string): Promise<void> {
+    await this.writeFile(
+      `data/session_archives/${sessionId}.json`,
+      payload,
+      `gitdb: materialize archive ${sessionId}`,
+    );
+  }
+
   async appendMutation(mutation: PersistedMutation): Promise<SegmentId> {
     const id = toSegmentId(String(mutation.sequence).padStart(20, "0"));
     await this.writeFile(

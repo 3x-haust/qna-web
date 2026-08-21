@@ -34,6 +34,7 @@ type QuestionFeedProps = {
     commandId: string,
   ) => void;
   onVote?: (questionId: string) => void;
+  onRequestRealName?: () => void;
   realName?: string;
 };
 
@@ -41,6 +42,7 @@ export function QuestionFeed({
   questions,
   onSubmit,
   onVote,
+  onRequestRealName,
   realName,
 }: QuestionFeedProps) {
   const [sort, setSort] = useState<"popular" | "recent">("popular");
@@ -153,12 +155,13 @@ export function QuestionFeed({
                 <IdentityButton
                   type="button"
                   $active={!anonymous}
-                  disabled={!realName}
                   title={realName ? undefined : "로그인하면 실명으로 질문할 수 있습니다"}
                   onClick={() => {
                     if (realName) {
                       setAnonymous(false);
                       setAuthorName(realName);
+                    } else {
+                      onRequestRealName?.();
                     }
                   }}
                 >

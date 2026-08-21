@@ -46,6 +46,24 @@ export const SessionToolbar = styled.div`
     color: ${({ theme }) => theme.colors.gray70};
     font-size: 14px;
   }
+
+  @media (max-width: 640px) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+`;
+
+export const SessionActions = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+
+  @media (max-width: 640px) {
+    > button {
+      flex: 1;
+    }
+  }
 `;
 
 export const Row = styled.div`

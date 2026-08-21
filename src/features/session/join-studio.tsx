@@ -26,7 +26,7 @@ const subscribeToLocation = () => () => undefined;
 
 export function JoinStudio() {
   const runtime = useRef<StudentRuntime | null>(null);
-  const { user } = useAuth();
+  const { login, user } = useAuth();
   const autoJoinStarted = useRef(false);
   const invitedCode = useSyncExternalStore(
     subscribeToLocation,
@@ -111,6 +111,11 @@ export function JoinStudio() {
           <QuestionFeed
             questions={session.questions}
             realName={user?.nickname}
+            onRequestRealName={() => {
+              void login().catch(() => {
+                setError("실명으로 질문하려면 로그인이 필요합니다");
+              });
+            }}
             onSubmit={submitQuestion}
             onVote={toggleVote}
           />

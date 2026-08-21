@@ -23,6 +23,7 @@ import {
   Label,
   Muted,
   Panel,
+  SessionActions,
   SessionToolbar,
   Studio,
   StudioShell,
@@ -208,14 +209,16 @@ export function HostStudio() {
           <>
             <SessionToolbar>
               <p>{peerCount}명 참여 중</p>
-              <PrimaryButton type="button" onClick={() => setShowShare(true)}>
-                공유
-              </PrimaryButton>
+              <SessionActions data-testid="teacher-session-actions">
+                <PrimaryButton type="button" onClick={() => setShowShare(true)}>
+                  공유
+                </PrimaryButton>
+                <PrimaryButton type="button" onClick={() => void end()}>
+                  세션 종료
+                </PrimaryButton>
+              </SessionActions>
             </SessionToolbar>
             <QuestionFeed questions={session.questions} />
-            <PrimaryButton type="button" onClick={() => void end()}>
-              세션 종료
-            </PrimaryButton>
           </>
         )}
         {error && <ErrorText role="alert">{error}</ErrorText>}

@@ -30,6 +30,10 @@ const AuthContext = createContext<AuthValue>({
 
 const subscribeToClient = () => () => undefined;
 
+export function postLoginDestination(pathname: string): "/home" | null {
+  return pathname === "/join" ? null : "/home";
+}
+
 function MirimAuthAdapter({ children }: { children: ReactNode }) {
   const oauth = useMirimOAuth();
   const router = useRouter();
@@ -43,11 +47,13 @@ function MirimAuthAdapter({ children }: { children: ReactNode }) {
     const operation = (async () => {
       if (window.localStorage.getItem("qna:e2e-auth") === "teacher") {
         window.localStorage.setItem("qna:mock-user", "김미림 선생님");
-        router.replace("/home?auth=1");
+        const destination = postLoginDestination(window.location.pathname);
+        if (destination) router.replace(`${destination}?auth=1`);
         return;
       }
       await oauth.logIn();
-      router.replace("/home");
+      const destination = postLoginDestination(window.location.pathname);
+      if (destination) router.replace(destination);
     })();
     loginPromise.current = operation;
     operation.then(

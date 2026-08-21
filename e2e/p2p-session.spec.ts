@@ -4,6 +4,17 @@ test("teacher is authoritative over a real DataChannel session", async ({ browse
   const teacherContext = await browser.newContext();
   const linkedStudentContext = await browser.newContext();
   const codedStudentContext = await browser.newContext();
+  const identityStudentContext = await browser.newContext();
+  await identityStudentContext.route(
+    "**/api/mirim/api/v1/oauth/authorize**",
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<title>Mirim OAuth test</title><main>Login required</main>",
+      });
+    },
+  );
   await teacherContext.grantPermissions(["clipboard-read", "clipboard-write"]);
   await linkedStudentContext.addInitScript(() => {
     window.localStorage.setItem(
@@ -28,6 +39,7 @@ test("teacher is authoritative over a real DataChannel session", async ({ browse
   const teacher = await teacherContext.newPage();
   const linkedStudent = await linkedStudentContext.newPage();
   const codedStudent = await codedStudentContext.newPage();
+  const identityStudent = await identityStudentContext.newPage();
   const linkedStudentErrors: string[] = [];
   const teacherErrors: string[] = [];
   linkedStudent.on("pageerror", (error) => linkedStudentErrors.push(error.message));
@@ -58,6 +70,47 @@ test("teacher is authoritative over a real DataChannel session", async ({ browse
 
   await expect(teacher.getByText("2명 참여 중")).toBeVisible();
   await expect(codedStudent.getByText("연결됨")).toHaveCount(0);
+
+  await identityStudent.goto(inviteUrl);
+  await expect(teacher.getByText("3명 참여 중")).toBeVisible();
+  await identityStudent.getByLabel("질문 작성", { exact: true }).focus();
+  const realNameButton = identityStudent.getByRole("button", { name: "실명" });
+  await expect(realNameButton).toBeEnabled();
+  const loginPopupPromise = identityStudent.waitForEvent("popup");
+  await realNameButton.click();
+  const loginPopup = await loginPopupPromise;
+  await expect(loginPopup).toHaveTitle("Mirim OAuth test");
+  await identityStudent.screenshot({
+    path: "test-results/identity-login-trigger.png",
+    fullPage: true,
+  });
+  await loginPopup.close();
+  await identityStudentContext.close();
+
+  const sessionActions = teacher.getByTestId("teacher-session-actions");
+  await expect(sessionActions.getByRole("button", { name: "공유" })).toBeVisible();
+  await expect(
+    sessionActions.getByRole("button", { name: "세션 종료" }),
+  ).toBeVisible();
+  const shareBox = await sessionActions
+    .getByRole("button", { name: "공유" })
+    .boundingBox();
+  const endBox = await sessionActions
+    .getByRole("button", { name: "세션 종료" })
+    .boundingBox();
+  expect(shareBox).not.toBeNull();
+  expect(endBox).not.toBeNull();
+  expect(
+    Math.abs(
+      (shareBox?.y ?? 0) +
+        (shareBox?.height ?? 0) / 2 -
+        ((endBox?.y ?? 0) + (endBox?.height ?? 0) / 2),
+    ),
+  ).toBeLessThanOrEqual(1);
+  await teacher.screenshot({
+    path: "test-results/teacher-session-actions.png",
+    fullPage: true,
+  });
 
   await expect(linkedStudent.getByTestId("question-composer")).toHaveAttribute(
     "data-expanded",

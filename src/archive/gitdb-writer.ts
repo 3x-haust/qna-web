@@ -49,7 +49,7 @@ export function createGitDbArchiveWriter(config: GitHubConfig): ArchiveWriter {
         "CREATE TABLE IF NOT EXISTS session_questions (question_id STRING, session_id STRING, participant_id STRING, author_name STRING, question_text STRING, created_sequence INT)",
       );
       await transaction.execute(
-        "CREATE TABLE IF NOT EXISTS question_likes (like_id STRING, question_id STRING, participant_id STRING)",
+        "CREATE TABLE IF NOT EXISTS question_likes (like_id STRING, session_id STRING, question_id STRING, participant_id STRING)",
       );
       await transaction.execute(
         "CREATE TABLE IF NOT EXISTS session_processed_commands (command_id STRING, session_id STRING)",
@@ -78,9 +78,10 @@ export function createGitDbArchiveWriter(config: GitHubConfig): ArchiveWriter {
         for (const participantId of question.likedBy) {
           await transaction.execute(
             insertSql("question_likes", {
-              like_id: `${question.id}:${participantId}`,
+              like_id: `${session.id}:${question.id}:${participantId}`,
               participant_id: participantId,
               question_id: question.id,
+              session_id: session.id,
             }),
           );
         }

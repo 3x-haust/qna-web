@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import { queueArchiveSession } from "@/archive/archive-client";
 import { QuestionFeed } from "@/features/session/question-feed";
@@ -33,7 +32,6 @@ import {
 import { Field, PrimaryButton } from "@/ui/primitives";
 
 export function HostStudio() {
-  const router = useRouter();
   const runtime = useRef<HostRuntime | null>(null);
   const signaling = useRef<SignalingSession | null>(null);
   const signalingAbort = useRef<AbortController | null>(null);
@@ -179,7 +177,7 @@ export function HostStudio() {
     const current = useSessionStore.getState().session;
     if (!current) return;
     queueArchiveSession(current);
-    router.replace("/home");
+    window.location.replace("/home");
   };
 
   return (

@@ -33,6 +33,8 @@ export async function handleMirimProxy(
   if (request.method === "GET" && path === "/api/v1/oauth/authorize") {
     const source = new URL(request.url);
     source.searchParams.forEach((value, key) => target.searchParams.set(key, value));
+    target.searchParams.set("client_id", config.clientId);
+    target.searchParams.set("redirect_uri", config.redirectUri);
     return Response.redirect(target);
   }
 

@@ -7,10 +7,14 @@ type Context = {
 function config() {
   return {
     appOrigin: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
-    clientId: process.env.NEXT_PUBLIC_MIRIM_CLIENT_ID ?? "",
+    clientId:
+      process.env.MIRIM_CLIENT_ID ??
+      process.env.NEXT_PUBLIC_MIRIM_CLIENT_ID ??
+      "",
     clientSecret: process.env.MIRIM_CLIENT_SECRET ?? "",
     oauthOrigin: process.env.MIRIM_OAUTH_SERVER_URL ?? "https://api-auth.mmhs.app",
     redirectUri:
+      process.env.MIRIM_REDIRECT_URI ??
       process.env.NEXT_PUBLIC_MIRIM_REDIRECT_URI ??
       "http://localhost:3000/auth/callback",
   };

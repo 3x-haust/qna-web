@@ -7,7 +7,9 @@
 - `NEXT_PUBLIC_MIRIM_CLIENT_ID`: Mirim OAuth에 등록한 공개 웹 클라이언트 ID
 - `NEXT_PUBLIC_MIRIM_REDIRECT_URI`: 등록한 callback URL과 완전히 같은 값
 - `NEXT_PUBLIC_MIRIM_SCOPES`: `email,nickname,profileImageUrl,role`
+- `MIRIM_CLIENT_ID`: Route Handler가 authorize/token 요청에 강제로 주입할 client ID
 - `MIRIM_CLIENT_SECRET`: Mirim OAuth에서 발급한 비공개 client secret
+- `MIRIM_REDIRECT_URI`: Route Handler가 강제로 주입할 등록 callback URL
 - `MIRIM_OAUTH_SERVER_URL`: 기본값 `https://api-auth.mmhs.app`
 
 `mirim-oauth-react`는 브라우저에서 PKCE popup 로그인을 수행하지만 token 교환은 `/api/mirim` Route Handler를 거친다. Route Handler가 브라우저 요청의 secret 값을 버리고 `MIRIM_CLIENT_SECRET`을 주입한다. 따라서 secret은 브라우저 번들에 포함되지 않는다.

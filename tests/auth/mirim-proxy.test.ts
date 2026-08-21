@@ -3,6 +3,31 @@ import { describe, expect, it, vi } from "vitest";
 import { handleMirimProxy } from "@/auth/mirim-proxy";
 
 describe("Mirim OAuth server secret proxy", () => {
+  it("replaces browser authorization identity with server configuration", async () => {
+    const response = await handleMirimProxy(
+      new Request(
+        "https://qna.3xhaust.dev/api/mirim/api/v1/oauth/authorize?client_id=&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fauth%2Fcallback&response_type=code&state=state&code_challenge=challenge&code_challenge_method=S256",
+      ),
+      "/api/v1/oauth/authorize",
+      vi.fn(),
+      {
+        appOrigin: "https://qna.3xhaust.dev",
+        clientId: "registered-client",
+        clientSecret: "server-secret",
+        oauthOrigin: "https://api-auth.mmhs.app",
+        redirectUri: "https://qna.3xhaust.dev/auth/callback",
+      },
+    );
+
+    const location = response.headers.get("location");
+    expect(location).not.toBeNull();
+    const authorization = new URL(location ?? "https://invalid.example");
+    expect(authorization.searchParams.get("client_id")).toBe("registered-client");
+    expect(authorization.searchParams.get("redirect_uri")).toBe(
+      "https://qna.3xhaust.dev/auth/callback",
+    );
+  });
+
   it("forwards authenticated user reads instead of redirecting them", async () => {
     const upstream = vi.fn().mockResolvedValue(
       Response.json({ status: 200, data: { id: "teacher" } }),

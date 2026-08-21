@@ -3,7 +3,6 @@ import type {
   GitDbStore,
   PersistedMutation,
 } from "@3xhaust/gitdb";
-import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 export type GitHubPlaintextStoreConfig = {
@@ -69,11 +68,9 @@ export class GitHubPlaintextStore implements GitDbStore {
   }
 
   async appendMutation(mutation: PersistedMutation): Promise<SegmentId> {
-    const id = toSegmentId(
-      `segments/${String(mutation.sequence).padStart(12, "0")}-${randomUUID()}.json`,
-    );
+    const id = toSegmentId(String(mutation.sequence).padStart(20, "0"));
     await this.writeFile(
-      id,
+      `log/${id}.json`,
       JSON.stringify(mutation, null, 2),
       `gitdb: append mutation ${mutation.sequence}`,
     );
@@ -85,7 +82,7 @@ export class GitHubPlaintextStore implements GitDbStore {
   ): Promise<readonly PersistedMutation[]> {
     return Promise.all(
       segments.map(async (segment) => {
-        const file = await this.readFile(segment);
+        const file = await this.readFile(`log/${segment}.json`);
         if (!file) throw new Error(`GitDB mutation을 찾을 수 없습니다: ${segment}`);
         return mutationSchema.parse(JSON.parse(file.content));
       }),

@@ -12,18 +12,34 @@ const config = {
 
 describe("plaintext GitDB GitHub store", () => {
   it("writes mutation SQL as readable JSON", async () => {
-    const github = vi
-      .fn()
-      .mockResolvedValueOnce(Response.json({ message: "Not Found" }, { status: 404 }))
-      .mockResolvedValueOnce(Response.json({ content: { sha: "created" } }));
-    const store = new GitHubPlaintextStore(config, github);
-
-    await store.appendMutation({
+    const mutation = {
       sequence: 1,
       sql: "INSERT INTO session_archives VALUES ('session-1')",
       at: "2026-08-21T00:00:00.000Z",
-    });
+    };
+    const github = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ message: "Not Found" }, { status: 404 }))
+      .mockResolvedValueOnce(Response.json({ content: { sha: "created" } }))
+      .mockResolvedValueOnce(
+        Response.json({
+          content: Buffer.from(JSON.stringify(mutation)).toString("base64"),
+          sha: "mutation-sha",
+        }),
+      );
+    const store = new GitHubPlaintextStore(config, github);
 
+    const segment = await store.appendMutation(mutation);
+    const restored = await store.readMutations([segment]);
+
+    expect(segment).toBe("00000000000000000001");
+    expect(github.mock.calls[0]?.[0]).toContain(
+      "/qna/v1/log/00000000000000000001.json",
+    );
+    expect(github.mock.calls[2]?.[0]).toContain(
+      "/qna/v1/log/00000000000000000001.json",
+    );
+    expect(restored).toEqual([mutation]);
     const put = github.mock.calls[1];
     const init = put?.[1];
     if (!init || typeof init.body !== "string") throw new Error("missing GitHub PUT");

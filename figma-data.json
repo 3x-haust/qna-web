@@ -1,0 +1,53 @@
+{
+  "fileKey": "SC5cyDsgzoRE6CITGMupTJ",
+  "viewport": { "width": 1440, "height": 730 },
+  "variables": {
+    "primary": "#008156",
+    "gray0": "#ffffff",
+    "gray70": "#a3a3a3",
+    "gray300": "#575757",
+    "gray400": "#4a4a4a",
+    "gray500": "#3b3b3b",
+    "gray600": "#2e2e2e"
+  },
+  "typography": {
+    "family": "Paperlogy",
+    "weights": [400, 500, 600, 700, 800]
+  },
+  "nodes": {
+    "2:4": {
+      "name": "Home>로그인 전",
+      "route": "/",
+      "header": { "top": 30, "width": 1440, "paddingX": 32 },
+      "headline": { "fontSize": 200, "text": "어쩌구 저쩌구\n랜딩 페이지" }
+    },
+    "21:1476": {
+      "name": "Home>로그인 후",
+      "route": "/home?auth=1",
+      "header": { "top": 30, "width": 1172, "paddingX": 16 },
+      "list": { "left": 150, "top": 194, "width": 1140, "gap": 18 }
+    },
+    "2:75": {
+      "name": "질의 populated",
+      "route": "/session/demo",
+      "composer": { "top": 98, "width": 808, "paddingX": 39, "paddingY": 30 },
+      "list": { "left": 316, "top": 305, "width": 808, "gap": 12 }
+    },
+    "2:86": {
+      "name": "질의 empty",
+      "route": "/session/create",
+      "composer": { "top": 88, "width": 808, "height": 248, "paddingX": 39, "paddingY": 30 },
+      "emptyState": { "top": 348, "iconSize": 56 }
+    }
+  },
+  "assets": {
+    "brand": "src/assets/figma-raster.ts#qnaMarkDataUri",
+    "mirim": "src/assets/figma-raster.ts#mirimLogoDataUri",
+    "plus": "public/assets/plus.svg",
+    "more": "public/assets/more.svg",
+    "person": "public/assets/person.svg",
+    "thumb": "public/assets/thumb.svg",
+    "send": "public/assets/send.svg",
+    "empty": "public/assets/empty.svg"
+  }
+}

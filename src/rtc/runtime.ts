@@ -19,22 +19,43 @@ type HostPeer = {
   channel: RTCDataChannel;
 };
 
+const PEER_CONNECTION_CONFIGURATION: RTCConfiguration = {
+  iceServers: [{ urls: "stun:stun.cloudflare.com:3478" }],
+};
+
 function waitForIce(peer: RTCPeerConnection): Promise<void> {
   if (peer.iceGatheringState === "complete") {
     return Promise.resolve();
   }
   return new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => {
+    const cleanup = () => {
+      globalThis.clearTimeout(timeout);
+      peer.removeEventListener("icecandidate", onCandidate);
       peer.removeEventListener("icegatheringstatechange", onChange);
-      reject(new Error("연결 정보를 모으는 데 시간이 오래 걸립니다"));
-    }, 10_000);
-    const onChange = () => {
-      if (peer.iceGatheringState === "complete") {
-        window.clearTimeout(timeout);
-        peer.removeEventListener("icegatheringstatechange", onChange);
-        resolve();
+    };
+    const finish = () => {
+      cleanup();
+      resolve();
+    };
+    const onCandidate = (event: RTCPeerConnectionIceEvent) => {
+      const candidate = event.candidate?.candidate;
+      if (
+        candidate === undefined ||
+        /\styp (?:srflx|relay)(?:\s|$)/.test(candidate)
+      ) {
+        finish();
       }
     };
+    const onChange = () => {
+      if (peer.iceGatheringState === "complete") {
+        finish();
+      }
+    };
+    const timeout = globalThis.setTimeout(() => {
+      cleanup();
+      reject(new Error("연결 정보를 모으는 데 시간이 오래 걸립니다"));
+    }, 10_000);
+    peer.addEventListener("icecandidate", onCandidate);
     peer.addEventListener("icegatheringstatechange", onChange);
   });
 }
@@ -57,14 +78,15 @@ export class HostRuntime {
   async createOffer(): Promise<string> {
     const connectionId = crypto.randomUUID();
     const nonce = crypto.randomUUID();
-    const peer = new RTCPeerConnection({ iceServers: [] });
+    const peer = new RTCPeerConnection(PEER_CONNECTION_CONFIGURATION);
     const channel = peer.createDataChannel("qna.v1", { ordered: true });
     channel.addEventListener("message", (event) => {
       this.onMessage(JSON.parse(String(event.data)) as WireMessage, connectionId);
     });
     this.peers.set(connectionId, { connectionId, nonce, peer, channel });
+    const iceReady = waitForIce(peer);
     await peer.setLocalDescription(await peer.createOffer());
-    await waitForIce(peer);
+    await iceReady;
     if (!peer.localDescription) {
       throw new Error("학생 연결 정보를 만들지 못했습니다");
     }
@@ -113,11 +135,11 @@ export class HostRuntime {
       return Promise.resolve();
     }
     return new Promise((resolve, reject) => {
-      const timeout = window.setTimeout(() => reject(new Error("학생 연결 시간이 초과되었습니다")), 10_000);
+    const timeout = globalThis.setTimeout(() => reject(new Error("학생 연결 시간이 초과되었습니다")), 10_000);
       channel.addEventListener(
         "open",
         () => {
-          window.clearTimeout(timeout);
+          globalThis.clearTimeout(timeout);
           resolve();
         },
         { once: true },
@@ -142,7 +164,7 @@ export class StudentRuntime {
       throw new Error("올바른 세션 연결 정보가 아닙니다");
     }
     this.participantId = offer.connectionId;
-    const peer = new RTCPeerConnection({ iceServers: [] });
+    const peer = new RTCPeerConnection(PEER_CONNECTION_CONFIGURATION);
     this.peer = peer;
     peer.addEventListener(
       "datachannel",
@@ -156,8 +178,9 @@ export class StudentRuntime {
       { once: true },
     );
     await peer.setRemoteDescription(offer.description);
+    const iceReady = waitForIce(peer);
     await peer.setLocalDescription(await peer.createAnswer());
-    await waitForIce(peer);
+    await iceReady;
     if (!peer.localDescription) {
       throw new Error("세션 연결 응답을 만들지 못했습니다");
     }

@@ -113,6 +113,17 @@ test("teacher is authoritative over a relayed session", async ({ browser }) => {
   const identityStudent = await identityStudentContext.newPage();
   const linkedStudentErrors: string[] = [];
   const teacherErrors: string[] = [];
+  let archivedRecord: unknown;
+  const archiveCaptured = Promise.withResolvers<void>();
+  await teacher.route("**/api/archive", async (route) => {
+    archivedRecord = JSON.parse(route.request().postData() ?? "{}");
+    archiveCaptured.resolve();
+    await route.fulfill({
+      status: 202,
+      contentType: "application/json",
+      body: JSON.stringify({ accepted: true }),
+    });
+  });
   linkedStudent.on("pageerror", (error) => linkedStudentErrors.push(error.message));
   teacher.on("pageerror", (error) => teacherErrors.push(error.message));
 
@@ -301,6 +312,31 @@ test("teacher is authoritative over a relayed session", async ({ browser }) => {
 
   await teacher.screenshot({ path: "test-results/p2p-teacher.png", fullPage: true });
   await linkedStudent.screenshot({ path: "test-results/p2p-student.png", fullPage: true });
+  await teacher.getByRole("button", { name: "세션 종료" }).click();
+  await teacher.getByRole("button", { name: "종료하고 보관" }).click();
+  await archiveCaptured.promise;
+  expect(archivedRecord).toMatchObject({
+    teacher: {
+      id: "teacher-user-42",
+      nickname: "김미림 선생님",
+      email: "teacher@e-mirim.hs.kr",
+    },
+    questionAuthors: {
+      "question-1": {
+        id: "student-1",
+        nickname: "김학생",
+        email: "student@e-mirim.hs.kr",
+      },
+    },
+    session: {
+      questions: [
+        expect.objectContaining({
+          id: "question-1",
+          likedBy: expect.arrayContaining([expect.any(String)]),
+        }),
+      ],
+    },
+  });
   await teacherContext.close();
   await linkedStudentContext.close();
   await codedStudentContext.close();

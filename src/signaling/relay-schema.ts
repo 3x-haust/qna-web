@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const relayCommandSchema = z.discriminatedUnion("kind", [
+export const relayClientCommandSchema = z.discriminatedUnion("kind", [
   z
     .object({
       commandId: z.string().min(1),
@@ -17,6 +17,30 @@ export const relayCommandSchema = z.discriminatedUnion("kind", [
       questionId: z.string().min(1),
     })
     .strict(),
+]);
+
+export const relayCommandSchema = z.discriminatedUnion("kind", [
+  relayClientCommandSchema.options[0]
+    .extend({
+      authorId: z.string().optional(),
+      authorEmail: z.string().email().optional(),
+    })
+    .superRefine((command, context) => {
+      const hasIdentity = Boolean(command.authorId && command.authorEmail);
+      if (command.anonymous && hasIdentity) {
+        context.addIssue({
+          code: "custom",
+          message: "익명 질문에는 실명 정보를 포함할 수 없습니다",
+        });
+      }
+      if (!command.anonymous && !hasIdentity) {
+        context.addIssue({
+          code: "custom",
+          message: "실명 질문에는 인증된 사용자 정보가 필요합니다",
+        });
+      }
+    }),
+  relayClientCommandSchema.options[1],
 ]);
 
 export const sessionStateSchema = z
@@ -44,3 +68,4 @@ export const sessionStateSchema = z
   .strict();
 
 export type RelayCommand = z.infer<typeof relayCommandSchema>;
+export type RelayClientCommand = z.infer<typeof relayClientCommandSchema>;

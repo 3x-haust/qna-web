@@ -4,11 +4,27 @@ import { archiveEndedSession } from "@/archive/archive";
 import { createSession } from "@/domain/session";
 
 describe("ended-only GitDB archival", () => {
+  const record = (session: ReturnType<typeof createSession>) => ({
+    session,
+    teacher: {
+      id: "teacher-1",
+      nickname: "김미림 선생님",
+      email: "teacher@e-mirim.hs.kr",
+    },
+    settings: {
+      visibility: "public" as const,
+      encryption: "plain" as const,
+    },
+    questionAuthors: {},
+  });
+
   it("never calls the writer for an active session", async () => {
     const writer = vi.fn();
     const active = createSession("session-1", "teacher-1", "분수의 덧셈");
 
-    await expect(archiveEndedSession(active, writer)).rejects.toThrow("종료된 질의만");
+    await expect(archiveEndedSession(record(active), writer)).rejects.toThrow(
+      "종료된 질의만",
+    );
     expect(writer).not.toHaveBeenCalled();
   });
 
@@ -20,7 +36,7 @@ describe("ended-only GitDB archival", () => {
       endedAt: "2026-08-21T00:00:00.000Z",
     };
 
-    await archiveEndedSession(ended, writer);
+    await archiveEndedSession(record(ended), writer);
 
     expect(writer).toHaveBeenCalledTimes(1);
     expect(writer).toHaveBeenCalledWith(

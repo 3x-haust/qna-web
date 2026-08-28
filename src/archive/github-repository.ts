@@ -4,6 +4,7 @@ type RepositoryConfig = {
   owner: string;
   repo: string;
   token: string;
+  visibility: "public" | "private";
 };
 
 type ResolvedRepository = {
@@ -12,6 +13,7 @@ type ResolvedRepository = {
 };
 
 const userSchema = z.object({ login: z.string().min(1) });
+const repositorySchema = z.object({ private: z.boolean() });
 
 function headers(token: string): Headers {
   return new Headers({
@@ -44,7 +46,13 @@ export async function ensureGitHubArchiveRepository(
     cache: "no-store",
   });
 
-  if (repositoryResponse.ok) return { owner, repo };
+  if (repositoryResponse.ok) {
+    const repository = repositorySchema.parse(await repositoryResponse.json());
+    if (repository.private !== (config.visibility === "private")) {
+      throw new Error("GitDB 저장소 공개 범위가 요청한 설정과 다릅니다");
+    }
+    return { owner, repo };
+  }
   if (repositoryResponse.status !== 404) {
     throw new Error("GitDB GitHub 저장소를 확인하지 못했습니다");
   }
@@ -58,9 +66,9 @@ export async function ensureGitHubArchiveRepository(
     headers: requestHeaders,
     body: JSON.stringify({
       name: repo,
-      private: false,
+      private: config.visibility === "private",
       auto_init: true,
-      description: "Public plaintext QnA session archives managed by GitDB",
+      description: `${config.visibility === "private" ? "Private" : "Public"} QnA session archives managed by GitDB`,
     }),
     cache: "no-store",
   });

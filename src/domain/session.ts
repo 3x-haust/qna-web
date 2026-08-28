@@ -48,6 +48,22 @@ export function createSession(
   };
 }
 
+export function reopenSession(
+  archived: SessionState,
+  id: string,
+  teacherId: string,
+): SessionState {
+  return {
+    id,
+    teacherId,
+    title: archived.title,
+    phase: "live",
+    seq: archived.seq,
+    questions: archived.questions,
+    processedCommandIds: [],
+  };
+}
+
 export function reduceHostCommand(
   state: SessionState,
   command: ClientCommand,

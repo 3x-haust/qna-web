@@ -138,9 +138,12 @@ export const Question = styled.article`
 `;
 
 export const Dialog = styled.dialog`
-  position: static;
+  position: fixed;
   width: min(480px, calc(100% - 40px));
-  margin: 0;
+  max-height: calc(100dvh - 40px);
+  inset: 0;
+  margin: auto;
+  overflow-y: auto;
   padding: 28px;
   border: 1px solid ${({ theme }) => theme.colors.gray300};
   border-radius: ${({ theme }) => theme.radius.panel};
@@ -149,6 +152,10 @@ export const Dialog = styled.dialog`
 
   h2 {
     margin-top: 0;
+  }
+
+  &::backdrop {
+    background: color-mix(in srgb, black 62%, transparent);
   }
 `;
 
@@ -167,6 +174,65 @@ export const DialogActions = styled.div`
   margin-top: 20px;
   justify-content: flex-end;
   gap: 10px;
+`;
+
+export const ArchiveOptions = styled.div`
+  display: grid;
+  margin-top: 20px;
+  gap: 18px;
+`;
+
+export const OptionGroup = styled.fieldset`
+  display: grid;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  gap: 10px;
+
+  legend {
+    margin-bottom: 10px;
+    color: ${({ theme }) => theme.colors.white};
+    font-size: 14px;
+    font-weight: 700;
+  }
+`;
+
+export const OptionChoice = styled.label`
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: start;
+  gap: 2px 10px;
+  padding: 12px 14px;
+  border: 1px solid ${({ theme }) => theme.colors.gray300};
+  border-radius: ${({ theme }) => theme.radius.control};
+  cursor: pointer;
+
+  input {
+    grid-row: 1 / span 2;
+    margin: 2px 0 0;
+    accent-color: ${({ theme }) => theme.colors.accent};
+  }
+
+  span {
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  small {
+    color: ${({ theme }) => theme.colors.gray70};
+    font-size: 12px;
+    line-height: 1.45;
+    word-break: keep-all;
+  }
+
+  &:has(input:checked) {
+    border-color: ${({ theme }) => theme.colors.accent};
+    background: color-mix(
+      in srgb,
+      ${({ theme }) => theme.colors.accent} 8%,
+      transparent
+    );
+  }
 `;
 
 export const Toast = styled.p`

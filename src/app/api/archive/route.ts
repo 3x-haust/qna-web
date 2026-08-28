@@ -1,15 +1,52 @@
-import { handleArchiveRequest } from "@/archive/archive-endpoint";
+import {
+  handleArchiveReadRequest,
+  handleArchiveRequest,
+} from "@/archive/archive-endpoint";
+import {
+  archiveConfigFromEnv,
+  resolveArchiveConfigOwner,
+} from "@/archive/gitdb-config";
+import { createGitDbArchiveReader } from "@/archive/gitdb-reader";
 import { createGitDbArchiveWriter } from "@/archive/gitdb-writer";
+import {
+  authenticateMirimRequest,
+  MirimAuthenticationError,
+} from "@/auth/mirim-principal";
 import { after } from "next/server";
 
 export async function POST(request: Request): Promise<Response> {
-  const session = await request.json();
-  const writer = createGitDbArchiveWriter({
-    owner: process.env.GITDB_GITHUB_OWNER ?? "",
-    repo: process.env.GITDB_GITHUB_REPO ?? "qna-archive",
-    branch: process.env.GITDB_GITHUB_BRANCH ?? "main",
-    prefix: process.env.GITDB_GITHUB_PREFIX ?? "gitdb/v1",
-    token: process.env.GITDB_GITHUB_TOKEN ?? "",
-  });
-  return handleArchiveRequest(session, writer, after);
+  try {
+    const principal = await authenticateMirimRequest(request);
+    const record = await request.json();
+    const config = await resolveArchiveConfigOwner(archiveConfigFromEnv());
+    return handleArchiveRequest(
+      record,
+      createGitDbArchiveWriter(config),
+      after,
+      principal,
+    );
+  } catch (error) {
+    return authenticationError(error);
+  }
+}
+
+export async function GET(request: Request): Promise<Response> {
+  try {
+    const principal = await authenticateMirimRequest(request);
+    const config = await resolveArchiveConfigOwner(archiveConfigFromEnv());
+    return handleArchiveReadRequest(
+      new URL(request.url),
+      createGitDbArchiveReader(config),
+      principal,
+    );
+  } catch (error) {
+    return authenticationError(error);
+  }
+}
+
+function authenticationError(error: unknown): Response {
+  if (error instanceof MirimAuthenticationError) {
+    return Response.json({ message: error.message }, { status: 401 });
+  }
+  throw error;
 }

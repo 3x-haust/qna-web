@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { createSession, reduceHostCommand } from "@/domain/session";
+import {
+  createSession,
+  endSession,
+  reduceHostCommand,
+  reopenSession,
+} from "@/domain/session";
 
 describe("teacher-authoritative session reducer", () => {
   it("assigns canonical sequence and ignores duplicate commands", () => {
@@ -66,5 +71,31 @@ describe("teacher-authoritative session reducer", () => {
         authorName: "학생",
       }),
     ).toThrow("종료된 질의");
+  });
+
+  it("reopens archived questions as a fresh live teacher session", () => {
+    const archived = endSession(
+      reduceHostCommand(createSession("old-session", "teacher-1", "수업"), {
+        commandId: "question-command",
+        kind: "question.submit",
+        participantId: "student-1",
+        text: "다시 볼 질문",
+        anonymous: false,
+        authorName: "김학생",
+      }),
+      "2026-08-28T01:00:00.000Z",
+    );
+
+    const reopened = reopenSession(archived, "new-session", "teacher-2");
+
+    expect(reopened).toMatchObject({
+      id: "new-session",
+      teacherId: "teacher-2",
+      title: "수업",
+      phase: "live",
+      questions: [{ text: "다시 볼 질문" }],
+      processedCommandIds: [],
+    });
+    expect(reopened.endedAt).toBeUndefined();
   });
 });

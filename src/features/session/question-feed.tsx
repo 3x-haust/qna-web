@@ -48,6 +48,7 @@ type QuestionFeedProps = {
   onRequestRealName?: () => void;
   participantId?: string;
   realName?: string;
+  realEmail?: string;
 };
 
 export function QuestionFeed({
@@ -57,6 +58,7 @@ export function QuestionFeed({
   onRequestRealName,
   participantId,
   realName,
+  realEmail,
 }: QuestionFeedProps) {
   const [sort, setSort] = useState<"popular" | "recent">("popular");
   const submitLocked = useRef(false);
@@ -213,7 +215,14 @@ export function QuestionFeed({
                     }
                   }}
                 >
-                  {realName ?? "실명"}
+                  {realName ? (
+                    <>
+                      {realName}
+                      {realEmail && <small>{realEmail}</small>}
+                    </>
+                  ) : (
+                    "실명"
+                  )}
                 </IdentityButton>
               </IdentityToggle>
             )}

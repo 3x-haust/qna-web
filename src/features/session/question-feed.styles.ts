@@ -186,12 +186,20 @@ export const ComposerSubmit = styled(PrimaryButton)`
 `;
 
 export const IdentityButton = styled.button<{ $active: boolean }>`
+  display: inline-grid;
+  justify-items: start;
   padding: 4px;
   background: transparent;
   color: ${({ $active, theme }) =>
     $active ? theme.colors.white : theme.colors.gray70};
   font-size: ${({ $active }) => ($active ? "16px" : "14px")};
   font-weight: ${({ $active }) => ($active ? 700 : 500)};
+
+  small {
+    color: ${({ theme }) => theme.colors.gray70};
+    font-size: 11px;
+    font-weight: 500;
+  }
 `;
 
 export const SortTabs = styled.div`

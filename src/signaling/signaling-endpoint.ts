@@ -1,9 +1,14 @@
 import { z } from "zod";
 
 import {
+  relayClientCommandSchema,
   relayCommandSchema,
   sessionStateSchema,
 } from "@/signaling/relay-schema";
+import {
+  authenticateMirimRequest,
+  type MirimPrincipal,
+} from "@/auth/mirim-principal";
 import { signalingStore } from "@/signaling/signaling-store";
 
 const WAIT_TIMEOUT_MS = 25_000;
@@ -14,7 +19,7 @@ const hostTokenSchema = z.object({ hostToken: z.string().min(1) }).strict();
 const commandRequestSchema = z
   .object({
     joinToken: z.string().min(1),
-    command: relayCommandSchema,
+    command: relayClientCommandSchema,
   })
   .strict();
 const snapshotRequestSchema = z
@@ -37,6 +42,8 @@ type WaitSignal = {
 export async function handleSignalingRequest(
   request: Request,
   context: SignalingRouteContext,
+  authenticate: (request: Request) => Promise<MirimPrincipal> =
+    authenticateMirimRequest,
 ): Promise<Response> {
   const { path } = await context.params;
   const segments = path ?? [];
@@ -86,7 +93,22 @@ export async function handleSignalingRequest(
       payloadSegment === "command"
     ) {
       const body = commandRequestSchema.parse(await readJson(request));
-      signalingStore.publishCommand(code, joinId, body.joinToken, body.command);
+      let command: unknown = body.command;
+      if (body.command.kind === "question.submit" && !body.command.anonymous) {
+        const principal = await authenticate(request);
+        command = {
+          ...body.command,
+          authorName: principal.nickname,
+          authorId: principal.id,
+          authorEmail: principal.email,
+        };
+      }
+      signalingStore.publishCommand(
+        code,
+        joinId,
+        body.joinToken,
+        relayCommandSchema.parse(command),
+      );
       return json({ ok: true });
     }
 

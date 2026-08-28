@@ -164,6 +164,7 @@ export function JoinStudio() {
             questions={session.questions}
             participantId={participantId}
             realName={user?.nickname}
+            realEmail={user?.email}
             onRequestRealName={() => {
               void login().catch(() => {
                 setError("실명으로 질문하려면 로그인이 필요합니다");

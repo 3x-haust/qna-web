@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ensureGitHubArchiveRepository } from "@/archive/github-repository";
 
 describe("GitDB archive repository provisioning", () => {
-  it("creates a public plaintext archive repository when it is missing", async () => {
+  it("creates a public archive repository when it is missing", async () => {
     const github = vi
       .fn()
       .mockResolvedValueOnce(Response.json({ login: "teacher" }))
@@ -16,7 +16,12 @@ describe("GitDB archive repository provisioning", () => {
       );
 
     const repository = await ensureGitHubArchiveRepository(
-      { owner: "", repo: "qna-archive", token: "token" },
+      {
+        owner: "",
+        repo: "qna-archive",
+        token: "token",
+        visibility: "public",
+      },
       github,
     );
 
@@ -29,7 +34,7 @@ describe("GitDB archive repository provisioning", () => {
           name: "qna-archive",
           private: false,
           auto_init: true,
-          description: "Public plaintext QnA session archives managed by GitDB",
+          description: "Public QnA session archives managed by GitDB",
         }),
       }),
     );
@@ -39,10 +44,17 @@ describe("GitDB archive repository provisioning", () => {
     const github = vi
       .fn()
       .mockResolvedValueOnce(Response.json({ login: "teacher" }))
-      .mockResolvedValueOnce(Response.json({ name: "qna-archive" }));
+      .mockResolvedValueOnce(
+        Response.json({ name: "qna-archive", private: false }),
+      );
 
     const repository = await ensureGitHubArchiveRepository(
-      { owner: "teacher", repo: "qna-archive", token: "token" },
+      {
+        owner: "teacher",
+        repo: "qna-archive",
+        token: "token",
+        visibility: "public",
+      },
       github,
     );
 
@@ -61,9 +73,52 @@ describe("GitDB archive repository provisioning", () => {
 
     await expect(
       ensureGitHubArchiveRepository(
-        { owner: "", repo: "qna-archive", token: "token" },
+        {
+          owner: "",
+          repo: "qna-archive",
+          token: "token",
+          visibility: "public",
+        },
         github,
       ),
     ).rejects.toThrow("GitHub 저장소를 만들 권한이 없습니다");
+  });
+
+  it("creates a private archive repository for private mode", async () => {
+    const github = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ login: "teacher" }))
+      .mockResolvedValueOnce(
+        Response.json({ message: "Not Found" }, { status: 404 }),
+      )
+      .mockResolvedValueOnce(
+        Response.json(
+          { owner: { login: "teacher" }, name: "qna-private", private: true },
+          { status: 201 },
+        ),
+      );
+
+    await ensureGitHubArchiveRepository(
+      {
+        owner: "",
+        repo: "qna-private",
+        token: "token",
+        visibility: "private",
+      },
+      github,
+    );
+
+    expect(github).toHaveBeenLastCalledWith(
+      "https://api.github.com/user/repos",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          name: "qna-private",
+          private: true,
+          auto_init: true,
+          description: "Private QnA session archives managed by GitDB",
+        }),
+      }),
+    );
   });
 });

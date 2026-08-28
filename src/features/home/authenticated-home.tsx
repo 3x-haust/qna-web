@@ -42,6 +42,18 @@ const EmptyState = styled.div`
   }
 `;
 
+const HomeActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+`;
+
+const ArchiveButton = styled(PrimaryButton)`
+  border: 1px solid ${({ theme }) => theme.colors.gray300};
+  background: transparent;
+`;
+
 export function AuthenticatedHome() {
   return (
     <AppShell data-testid="app-shell">
@@ -53,9 +65,14 @@ export function AuthenticatedHome() {
             새 Q&amp;A 세션을 열고 참여 링크를 공유하면 학생 질문을 실시간으로 확인할
             수 있어요.
           </p>
-          <PrimaryButton as={Link} href="/session/create">
-            세션 만들기
-          </PrimaryButton>
+          <HomeActions>
+            <PrimaryButton as={Link} href="/session/create">
+              세션 만들기
+            </PrimaryButton>
+            <ArchiveButton as={Link} href="/archive">
+              아카이브 보기
+            </ArchiveButton>
+          </HomeActions>
         </EmptyState>
       </Content>
     </AppShell>

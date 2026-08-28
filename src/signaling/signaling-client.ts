@@ -3,8 +3,10 @@ import { z } from "zod";
 import {
   relayCommandSchema,
   sessionStateSchema,
+  type RelayClientCommand,
   type RelayCommand,
 } from "@/signaling/relay-schema";
+import { mirimAuthorizationHeaders } from "@/auth/client-token";
 
 const createSessionResponseSchema = z.object({ code: z.string(), hostToken: z.string() }).strict();
 const requestJoinResponseSchema = z.object({ id: z.string(), joinToken: z.string() }).strict();
@@ -57,12 +59,15 @@ export async function publishCommand(
   code: string,
   joinId: string,
   joinToken: string,
-  command: RelayCommand,
+  command: RelayClientCommand,
   options: RequestOptions = {},
 ): Promise<void> {
   await requestJson(`/api/signaling/sessions/${encodeURIComponent(code)}/joins/${encodeURIComponent(joinId)}/command`, {
     method: "POST",
     body: { joinToken, command },
+    headers: command.kind === "question.submit" && !command.anonymous
+      ? mirimAuthorizationHeaders()
+      : undefined,
     signal: options.signal,
     schema: okResponseSchema,
   });
@@ -150,11 +155,20 @@ async function requestJson<T>(
     body: unknown;
     signal?: AbortSignal;
     schema: z.ZodType<T>;
+    headers?: Headers;
   },
 ): Promise<T> {
   const response = await fetch(url, {
     method: options.method,
     headers: { "Content-Type": "application/json" },
+    ...(options.headers
+      ? {
+          headers: new Headers({
+            ...Object.fromEntries(options.headers.entries()),
+            "Content-Type": "application/json",
+          }),
+        }
+      : {}),
     body: JSON.stringify(options.body),
     cache: "no-store",
     signal: options.signal,

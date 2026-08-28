@@ -17,7 +17,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "bun run dev -- --port 3210",
+    command: "QNA_E2E_AUTH=1 bun run dev -- --port 3210",
     url: "http://127.0.0.1:3210",
     reuseExistingServer: true,
     timeout: 120_000,

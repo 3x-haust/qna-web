@@ -117,6 +117,60 @@ describe("signaling route cancellation", () => {
     expect(publishedCommand.status).toBe(200);
     await expect((await waitingCommand).json()).resolves.toEqual({ command });
 
+    const namedWaiting = handleSignalingRequest(
+      new Request(
+        `http://localhost/api/signaling/sessions/${session.code}/joins/${join.id}/command?hostToken=${session.hostToken}`,
+      ),
+      {
+        params: Promise.resolve({
+          path: ["sessions", session.code, "joins", join.id, "command"],
+        }),
+      },
+    );
+    const namedPublished = await handleSignalingRequest(
+      new Request(
+        `http://localhost/api/signaling/sessions/${session.code}/joins/${join.id}/command`,
+        {
+          method: "POST",
+          headers: { authorization: "Bearer student-token" },
+          body: JSON.stringify({
+            joinToken: join.joinToken,
+            command: {
+              commandId: "command-2",
+              kind: "question.submit",
+              text: "실명 질문",
+              anonymous: false,
+              authorName: "위조 이름",
+            },
+          }),
+        },
+      ),
+      {
+        params: Promise.resolve({
+          path: ["sessions", session.code, "joins", join.id, "command"],
+        }),
+      },
+      async () => ({
+        id: "student-1",
+        nickname: "김학생",
+        email: "student@e-mirim.hs.kr",
+        role: "STUDENT",
+      }),
+    );
+
+    expect(namedPublished.status).toBe(200);
+    await expect((await namedWaiting).json()).resolves.toEqual({
+      command: {
+        commandId: "command-2",
+        kind: "question.submit",
+        text: "실명 질문",
+        anonymous: false,
+        authorName: "김학생",
+        authorId: "student-1",
+        authorEmail: "student@e-mirim.hs.kr",
+      },
+    });
+
     const snapshot = createSession("session-1", "teacher", "HTTP relay");
     const waitingSnapshot = handleSignalingRequest(
       new Request(

@@ -1,10 +1,16 @@
 import { z } from "zod";
 
+import {
+  relayCommandSchema,
+  sessionStateSchema,
+  type RelayCommand,
+} from "@/signaling/relay-schema";
+
 const createSessionResponseSchema = z.object({ code: z.string(), hostToken: z.string() }).strict();
 const requestJoinResponseSchema = z.object({ id: z.string(), joinToken: z.string() }).strict();
 const waitJoinResponseSchema = z.object({ id: z.string() }).strict();
-const waitOfferResponseSchema = z.object({ offer: z.string() }).strict();
-const waitAnswerResponseSchema = z.object({ answer: z.string() }).strict();
+const waitCommandResponseSchema = z.object({ command: relayCommandSchema }).strict();
+const waitSnapshotResponseSchema = z.object({ snapshot: sessionStateSchema }).strict();
 const okResponseSchema = z.object({ ok: z.literal(true) }).strict();
 
 type RequestOptions = {
@@ -47,62 +53,62 @@ export async function waitForJoin(
   );
 }
 
-export async function publishOffer(
+export async function publishCommand(
   code: string,
   joinId: string,
-  hostToken: string,
-  offer: string,
+  joinToken: string,
+  command: RelayCommand,
   options: RequestOptions = {},
 ): Promise<void> {
-  await requestJson(`/api/signaling/sessions/${encodeURIComponent(code)}/joins/${encodeURIComponent(joinId)}/offer`, {
+  await requestJson(`/api/signaling/sessions/${encodeURIComponent(code)}/joins/${encodeURIComponent(joinId)}/command`, {
     method: "POST",
-    body: { hostToken, offer },
+    body: { joinToken, command },
     signal: options.signal,
     schema: okResponseSchema,
   });
 }
 
-export async function waitForOffer(
+export async function waitForCommand(
   code: string,
   joinId: string,
-  joinToken: string,
+  hostToken: string,
   options: RequestOptions = {},
-): Promise<string> {
+): Promise<RelayCommand> {
   const result = await waitUntilJson(
-    `/api/signaling/sessions/${encodeURIComponent(code)}/joins/${encodeURIComponent(joinId)}/offer?joinToken=${encodeURIComponent(joinToken)}`,
-    waitOfferResponseSchema,
+    `/api/signaling/sessions/${encodeURIComponent(code)}/joins/${encodeURIComponent(joinId)}/command?hostToken=${encodeURIComponent(hostToken)}`,
+    waitCommandResponseSchema,
     options.signal,
   );
-  return result.offer;
+  return result.command;
 }
 
-export async function publishAnswer(
+export async function publishSnapshot(
   code: string,
   joinId: string,
-  joinToken: string,
-  answer: string,
+  hostToken: string,
+  snapshot: z.infer<typeof sessionStateSchema>,
   options: RequestOptions = {},
 ): Promise<void> {
-  await requestJson(`/api/signaling/sessions/${encodeURIComponent(code)}/joins/${encodeURIComponent(joinId)}/answer`, {
+  await requestJson(`/api/signaling/sessions/${encodeURIComponent(code)}/joins/${encodeURIComponent(joinId)}/snapshot`, {
     method: "POST",
-    body: { joinToken, answer },
+    body: { hostToken, snapshot },
     signal: options.signal,
     schema: okResponseSchema,
   });
 }
 
-export async function waitForAnswer(
+export async function waitForSnapshot(
   code: string,
   joinId: string,
-  hostToken: string,
+  joinToken: string,
   options: RequestOptions = {},
-): Promise<string> {
+): Promise<z.infer<typeof sessionStateSchema>> {
   const result = await waitUntilJson(
-    `/api/signaling/sessions/${encodeURIComponent(code)}/joins/${encodeURIComponent(joinId)}/answer?hostToken=${encodeURIComponent(hostToken)}`,
-    waitAnswerResponseSchema,
+    `/api/signaling/sessions/${encodeURIComponent(code)}/joins/${encodeURIComponent(joinId)}/snapshot?joinToken=${encodeURIComponent(joinToken)}`,
+    waitSnapshotResponseSchema,
     options.signal,
   );
-  return result.answer;
+  return result.snapshot;
 }
 
 export async function closeSignalingSession(

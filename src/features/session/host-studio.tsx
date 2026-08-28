@@ -5,12 +5,11 @@ import { useRouter } from "next/navigation";
 
 import { queueArchiveSession } from "@/archive/archive-client";
 import { QuestionFeed } from "@/features/session/question-feed";
-import { HostRuntime } from "@/rtc/runtime";
 import {
   closeSignalingSession,
   createSignalingSession,
-  publishOffer,
-  waitForAnswer,
+  publishSnapshot,
+  waitForCommand,
   waitForJoin,
   type SignalingSession,
 } from "@/signaling/signaling-client";
@@ -34,9 +33,9 @@ import { Field, PrimaryButton } from "@/ui/primitives";
 
 export function HostStudio() {
   const router = useRouter();
-  const runtime = useRef<HostRuntime | null>(null);
   const signaling = useRef<SignalingSession | null>(null);
   const signalingAbort = useRef<AbortController | null>(null);
+  const joinedStudents = useRef(new Set<string>());
   const [title, setTitle] = useState("");
   const [sessionCode, setSessionCode] = useState("");
   const [inviteUrl, setInviteUrl] = useState("");
@@ -50,7 +49,6 @@ export function HostStudio() {
   useEffect(
     () => () => {
       signalingAbort.current?.abort();
-      runtime.current?.close();
     },
     [],
   );
@@ -65,32 +63,17 @@ export function HostStudio() {
     router.prefetch("/home");
   }, [router]);
 
-  const buildRuntime = () => {
-    const current = useSessionStore.getState().session;
-    if (!current) {
-      throw new Error("먼저 호스트를 시작해 주세요");
-    }
-    const host = new HostRuntime(current.id, (message, participantId) => {
-      if (message.kind === "question.submit") {
-        useSessionStore
-          .getState()
-          .submitQuestion(
-            participantId,
-            message.text,
-            message.anonymous,
-            message.authorName,
-            message.commandId,
-          );
-      } else if (message.kind === "question.vote.toggle") {
-        useSessionStore
-          .getState()
-          .toggleVote(participantId, message.questionId, message.commandId);
-      }
-      const next = useSessionStore.getState().session;
-      if (next) host.broadcast(next);
-    });
-    runtime.current = host;
-    return host;
+  const broadcastSnapshot = async (
+    code: string,
+    hostToken: string,
+  ) => {
+    const snapshot = useSessionStore.getState().session;
+    if (!snapshot) return;
+    await Promise.all(
+      [...joinedStudents.current].map((joinId) =>
+        publishSnapshot(code, joinId, hostToken, snapshot),
+      ),
+    );
   };
 
   const connectStudent = async (
@@ -99,15 +82,28 @@ export function HostStudio() {
     joinId: string,
     signal: AbortSignal,
   ) => {
-    const host = runtime.current ?? buildRuntime();
-    const offer = await host.createOffer();
-    await publishOffer(code, joinId, hostToken, offer, { signal });
-    const answer = await waitForAnswer(code, joinId, hostToken, { signal });
-    await host.acceptAnswer(answer);
-    useSessionStore.getState().setConnectionStatus("connected");
+    joinedStudents.current.add(joinId);
     setPeerCount((count) => count + 1);
-    const current = useSessionStore.getState().session;
-    if (current) host.broadcast(current);
+    await broadcastSnapshot(code, hostToken);
+    while (!signal.aborted) {
+      const command = await waitForCommand(code, joinId, hostToken, { signal });
+      if (command.kind === "question.submit") {
+        useSessionStore
+          .getState()
+          .submitQuestion(
+            joinId,
+            command.text,
+            command.anonymous,
+            command.authorName,
+            command.commandId,
+          );
+      } else {
+        useSessionStore
+          .getState()
+          .toggleVote(joinId, command.questionId, command.commandId);
+      }
+      await broadcastSnapshot(code, hostToken);
+    }
   };
 
   const listenForStudents = async (
@@ -140,6 +136,7 @@ export function HostStudio() {
       const created = await createSignalingSession();
       startHost(title);
       signaling.current = created;
+      joinedStudents.current.clear();
       const controller = new AbortController();
       signalingAbort.current = controller;
       setSessionCode(created.code);
@@ -163,11 +160,13 @@ export function HostStudio() {
 
   const end = async () => {
     finish();
-    const current = useSessionStore.getState().session;
-    if (current) runtime.current?.broadcast(current);
-    signalingAbort.current?.abort();
     if (signaling.current) {
       try {
+        await broadcastSnapshot(
+          signaling.current.code,
+          signaling.current.hostToken,
+        );
+        signalingAbort.current?.abort();
         await closeSignalingSession(
           signaling.current.code,
           signaling.current.hostToken,

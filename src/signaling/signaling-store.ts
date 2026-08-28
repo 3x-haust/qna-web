@@ -1,5 +1,8 @@
 import { randomInt, randomUUID } from "node:crypto";
 
+import type { SessionState } from "@/domain/session";
+import type { RelayCommand } from "@/signaling/relay-schema";
+
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const CODE_LENGTH = 6;
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
@@ -7,10 +10,10 @@ const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 type JoinRecord = {
   id: string;
   joinToken: string;
-  offer?: string;
-  answer?: string;
-  offerWaiters: Array<Waiter<string>>;
-  answerWaiters: Array<Waiter<string>>;
+  commands: RelayCommand[];
+  snapshot?: SessionState;
+  commandWaiters: Array<Waiter<RelayCommand>>;
+  snapshotWaiters: Array<Waiter<SessionState>>;
 };
 
 type SessionRecord = {
@@ -58,8 +61,9 @@ export class SignalingStore {
     const join: JoinRecord = {
       id: randomUUID(),
       joinToken: createToken(),
-      offerWaiters: [],
-      answerWaiters: [],
+      commands: [],
+      commandWaiters: [],
+      snapshotWaiters: [],
     };
 
     session.joins.set(join.id, join);
@@ -84,46 +88,70 @@ export class SignalingStore {
     return waitForEvent(session.joinWaiters, signal);
   }
 
-  publishOffer(code: string, joinId: string, hostToken: string, offer: string): void {
-    const session = this.#getHostSession(code, hostToken);
-    const join = this.#getJoin(session, joinId);
-    join.offer = offer;
-    resolveWaiters(join.offerWaiters, offer);
-  }
-
-  waitForOffer(
+  publishCommand(
     code: string,
     joinId: string,
     joinToken: string,
-    signal?: AbortSignal,
-  ): Promise<string> {
+    command: RelayCommand,
+  ): void {
     const join = this.#getJoinForPeer(code, joinId, joinToken);
-    if (join.offer !== undefined) {
-      return Promise.resolve(join.offer);
+    const waiter = join.commandWaiters.shift();
+    if (waiter) {
+      waiter.cleanup();
+      waiter.resolve(command);
+    } else {
+      join.commands.push(command);
     }
-
-    return waitForEvent(join.offerWaiters, signal);
   }
 
-  publishAnswer(code: string, joinId: string, joinToken: string, answer: string): void {
-    const join = this.#getJoinForPeer(code, joinId, joinToken);
-    join.answer = answer;
-    resolveWaiters(join.answerWaiters, answer);
-  }
-
-  waitForAnswer(
+  waitForCommand(
     code: string,
     joinId: string,
     hostToken: string,
     signal?: AbortSignal,
-  ): Promise<string> {
+  ): Promise<RelayCommand> {
     const session = this.#getHostSession(code, hostToken);
     const join = this.#getJoin(session, joinId);
-    if (join.answer !== undefined) {
-      return Promise.resolve(join.answer);
+    const command = join.commands.shift();
+    if (command) {
+      return Promise.resolve(command);
     }
 
-    return waitForEvent(join.answerWaiters, signal);
+    return waitForEvent(join.commandWaiters, signal);
+  }
+
+  publishSnapshot(
+    code: string,
+    joinId: string,
+    hostToken: string,
+    snapshot: SessionState,
+  ): void {
+    const session = this.#getHostSession(code, hostToken);
+    const join = this.#getJoin(session, joinId);
+    if (join.snapshot && join.snapshot.seq >= snapshot.seq) {
+      return;
+    }
+    if (join.snapshotWaiters.length > 0) {
+      resolveWaiters(join.snapshotWaiters, snapshot);
+    } else {
+      join.snapshot = snapshot;
+    }
+  }
+
+  waitForSnapshot(
+    code: string,
+    joinId: string,
+    joinToken: string,
+    signal?: AbortSignal,
+  ): Promise<SessionState> {
+    const join = this.#getJoinForPeer(code, joinId, joinToken);
+    if (join.snapshot) {
+      const snapshot = join.snapshot;
+      join.snapshot = undefined;
+      return Promise.resolve(snapshot);
+    }
+
+    return waitForEvent(join.snapshotWaiters, signal);
   }
 
   deleteSession(code: string, hostToken: string): void {

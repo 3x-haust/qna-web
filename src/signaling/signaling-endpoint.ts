@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+import {
+  relayCommandSchema,
+  sessionStateSchema,
+} from "@/signaling/relay-schema";
 import { signalingStore } from "@/signaling/signaling-store";
 
 const WAIT_TIMEOUT_MS = 25_000;
@@ -7,11 +11,17 @@ const WAIT_TIMEOUT_MS = 25_000;
 const emptySchema = z.object({}).strict();
 const requestJoinSchema = z.object({ code: z.string().min(1) }).strict();
 const hostTokenSchema = z.object({ hostToken: z.string().min(1) }).strict();
-const offerSchema = z
-  .object({ hostToken: z.string().min(1), offer: z.string() })
+const commandRequestSchema = z
+  .object({
+    joinToken: z.string().min(1),
+    command: relayCommandSchema,
+  })
   .strict();
-const answerSchema = z
-  .object({ joinToken: z.string().min(1), answer: z.string() })
+const snapshotRequestSchema = z
+  .object({
+    hostToken: z.string().min(1),
+    snapshot: sessionStateSchema,
+  })
   .strict();
 
 type SignalingRouteContext = {
@@ -73,10 +83,10 @@ export async function handleSignalingRequest(
       typeof code === "string" &&
       joinsSegment === "joins" &&
       typeof joinId === "string" &&
-      payloadSegment === "offer"
+      payloadSegment === "command"
     ) {
-      const body = offerSchema.parse(await readJson(request));
-      signalingStore.publishOffer(code, joinId, body.hostToken, body.offer);
+      const body = commandRequestSchema.parse(await readJson(request));
+      signalingStore.publishCommand(code, joinId, body.joinToken, body.command);
       return json({ ok: true });
     }
 
@@ -87,11 +97,11 @@ export async function handleSignalingRequest(
       typeof code === "string" &&
       joinsSegment === "joins" &&
       typeof joinId === "string" &&
-      payloadSegment === "offer"
+      payloadSegment === "command"
     ) {
-      const joinToken = requireSearchParam(request, "joinToken");
+      const hostToken = requireSearchParam(request, "hostToken");
       return waitJson(request, async (signal) => ({
-        offer: await signalingStore.waitForOffer(code, joinId, joinToken, signal),
+        command: await signalingStore.waitForCommand(code, joinId, hostToken, signal),
       }));
     }
 
@@ -102,10 +112,10 @@ export async function handleSignalingRequest(
       typeof code === "string" &&
       joinsSegment === "joins" &&
       typeof joinId === "string" &&
-      payloadSegment === "answer"
+      payloadSegment === "snapshot"
     ) {
-      const body = answerSchema.parse(await readJson(request));
-      signalingStore.publishAnswer(code, joinId, body.joinToken, body.answer);
+      const body = snapshotRequestSchema.parse(await readJson(request));
+      signalingStore.publishSnapshot(code, joinId, body.hostToken, body.snapshot);
       return json({ ok: true });
     }
 
@@ -116,11 +126,11 @@ export async function handleSignalingRequest(
       typeof code === "string" &&
       joinsSegment === "joins" &&
       typeof joinId === "string" &&
-      payloadSegment === "answer"
+      payloadSegment === "snapshot"
     ) {
-      const hostToken = requireSearchParam(request, "hostToken");
+      const joinToken = requireSearchParam(request, "joinToken");
       return waitJson(request, async (signal) => ({
-        answer: await signalingStore.waitForAnswer(code, joinId, hostToken, signal),
+        snapshot: await signalingStore.waitForSnapshot(code, joinId, joinToken, signal),
       }));
     }
 

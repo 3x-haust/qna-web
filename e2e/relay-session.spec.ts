@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("teacher is authoritative over a real DataChannel session", async ({ browser }) => {
+test("teacher is authoritative over a relayed session", async ({ browser }) => {
   const teacherContext = await browser.newContext();
   const linkedStudentContext = await browser.newContext();
   const codedStudentContext = await browser.newContext({
@@ -226,4 +226,59 @@ test("teacher is authoritative over a real DataChannel session", async ({ browse
   await teacherContext.close();
   await linkedStudentContext.close();
   await codedStudentContext.close();
+});
+
+test("questions work through HTTP when WebRTC is unavailable", async ({ browser }) => {
+  const teacherContext = await browser.newContext();
+  const studentContext = await browser.newContext();
+  const disableWebRtc = () => {
+    Object.defineProperty(globalThis, "RTCPeerConnection", {
+      configurable: true,
+      value: undefined,
+    });
+  };
+  await Promise.all([
+    teacherContext.addInitScript(disableWebRtc),
+    studentContext.addInitScript(disableWebRtc),
+  ]);
+  const teacher = await teacherContext.newPage();
+  const student = await studentContext.newPage();
+  const teacherErrors: string[] = [];
+  const studentErrors: string[] = [];
+  teacher.on("pageerror", (error) => teacherErrors.push(error.message));
+  student.on("pageerror", (error) => studentErrors.push(error.message));
+
+  await teacher.goto("/session/create");
+  await teacher.getByLabel("세션 이름").fill("HTTP relay");
+  await teacher.getByRole("button", { name: "세션 시작" }).click();
+  await teacher.getByRole("button", { name: "공유" }).click();
+  const inviteUrl = await teacher.getByLabel("참여 링크").inputValue();
+  await teacher.getByRole("button", { name: "닫기" }).click();
+
+  await student.goto(inviteUrl);
+
+  await expect(teacher.getByText("1명 참여 중")).toBeVisible();
+  await expect(student.getByRole("heading", { name: "HTTP relay" })).toBeVisible();
+  await student
+    .getByLabel("질문 작성", { exact: true })
+    .fill("WebRTC 없이도 보이나요?");
+  await student.getByRole("button", { name: "보내기" }).click();
+
+  await expect(
+    teacher
+      .getByTestId("question-feed")
+      .locator("article")
+      .filter({ hasText: "WebRTC 없이도 보이나요?" }),
+  ).toHaveCount(1);
+  await expect(
+    student
+      .getByTestId("question-feed")
+      .locator("article")
+      .filter({ hasText: "WebRTC 없이도 보이나요?" }),
+  ).toHaveCount(1);
+  await expect(teacher.getByText("1명 참여 중")).toBeVisible();
+  expect(teacherErrors).toEqual([]);
+  expect(studentErrors).toEqual([]);
+
+  await Promise.all([teacherContext.close(), studentContext.close()]);
 });

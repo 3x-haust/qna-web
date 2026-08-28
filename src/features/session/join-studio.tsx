@@ -4,11 +4,11 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 
 import { useAuth } from "@/auth/auth-provider";
 import { QuestionFeed } from "@/features/session/question-feed";
-import { StudentRuntime } from "@/rtc/runtime";
 import {
-  publishAnswer,
+  publishCommand,
   requestSessionJoin,
-  waitForOffer,
+  waitForSnapshot,
+  type SignalingJoin,
 } from "@/signaling/signaling-client";
 import { useSessionStore } from "@/state/session-store";
 import {
@@ -25,7 +25,8 @@ import { PrimaryButton } from "@/ui/primitives";
 const subscribeToLocation = () => () => undefined;
 
 export function JoinStudio() {
-  const runtime = useRef<StudentRuntime | null>(null);
+  const relay = useRef<(SignalingJoin & { code: string }) | null>(null);
+  const relayAbort = useRef<AbortController | null>(null);
   const { login, user } = useAuth();
   const autoJoinStarted = useRef(false);
   const invitedCode = useSyncExternalStore(
@@ -40,36 +41,47 @@ export function JoinStudio() {
   const [participantId, setParticipantId] = useState<string>();
   const { session, connectionStatus, replaceSnapshot } = useSessionStore();
 
-  useEffect(() => () => runtime.current?.close(), []);
+  useEffect(
+    () => () => {
+      relayAbort.current?.abort();
+    },
+    [],
+  );
 
   const connect = useCallback(
     async (code: string) => {
+      const controller = new AbortController();
       try {
         if (code.length !== 6) {
           setError("6자리 세션 코드를 입력해 주세요");
           return;
         }
         useSessionStore.getState().setConnectionStatus("connecting");
-        const student = new StudentRuntime(
-          (message) => {
-            if (message.kind === "snapshot") {
-              replaceSnapshot(message.session);
-            }
-          },
-          () => useSessionStore.getState().setConnectionStatus("connected"),
-        );
-        runtime.current = student;
-        const join = await requestSessionJoin(code);
-        const offer = await waitForOffer(code, join.id, join.joinToken);
-        const answerSignal = await student.acceptOffer(offer);
-        const connectedParticipantId = student.getParticipantId();
-        if (!connectedParticipantId) {
-          throw new Error("학생 참여자 정보를 확인하지 못했습니다");
-        }
-        setParticipantId(connectedParticipantId);
-        await publishAnswer(code, join.id, join.joinToken, answerSignal);
+        relayAbort.current?.abort();
+        relayAbort.current = controller;
+        const join = await requestSessionJoin(code, {
+          signal: controller.signal,
+        });
+        relay.current = { code, ...join };
+        setParticipantId(join.id);
         setError("");
+        while (!controller.signal.aborted) {
+          const snapshot = await waitForSnapshot(
+            code,
+            join.id,
+            join.joinToken,
+            { signal: controller.signal },
+          );
+          replaceSnapshot(snapshot);
+          useSessionStore.getState().setConnectionStatus("connected");
+          if (snapshot.phase === "ended") {
+            return;
+          }
+        }
       } catch (reason) {
+        if (controller.signal.aborted) {
+          return;
+        }
         useSessionStore.getState().setConnectionStatus("failed");
         setError(reason instanceof Error ? reason.message : "세션에 연결하지 못했습니다");
         autoJoinStarted.current = false;
@@ -79,10 +91,20 @@ export function JoinStudio() {
   );
 
   useEffect(() => {
-    if (invitedCode.length === 6 && !autoJoinStarted.current) {
-      autoJoinStarted.current = true;
-      void connect(invitedCode);
-    }
+    let active = true;
+    queueMicrotask(() => {
+      if (
+        active &&
+        invitedCode.length === 6 &&
+        !autoJoinStarted.current
+      ) {
+        autoJoinStarted.current = true;
+        void connect(invitedCode);
+      }
+    });
+    return () => {
+      active = false;
+    };
   }, [connect, invitedCode]);
 
   const submitQuestion = (
@@ -91,21 +113,45 @@ export function JoinStudio() {
     authorName: string,
     commandId: string,
   ) => {
-    try {
-      if (!runtime.current) throw new Error("세션 참여 정보를 찾을 수 없습니다");
-      runtime.current.sendQuestion(text, anonymous, authorName, commandId);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "질문을 보내지 못했습니다");
+    const connection = relay.current;
+    if (!connection) {
+      setError("세션 참여 정보를 찾을 수 없습니다");
+      return;
     }
+    void publishCommand(
+      connection.code,
+      connection.id,
+      connection.joinToken,
+      {
+        commandId,
+        kind: "question.submit",
+        text,
+        anonymous,
+        authorName,
+      },
+    ).catch((reason: unknown) => {
+      setError(reason instanceof Error ? reason.message : "질문을 보내지 못했습니다");
+    });
   };
 
   const toggleVote = (questionId: string) => {
-    try {
-      if (!runtime.current) throw new Error("세션 참여 정보를 찾을 수 없습니다");
-      runtime.current.toggleVote(questionId);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "추천을 반영하지 못했습니다");
+    const connection = relay.current;
+    if (!connection) {
+      setError("세션 참여 정보를 찾을 수 없습니다");
+      return;
     }
+    void publishCommand(
+      connection.code,
+      connection.id,
+      connection.joinToken,
+      {
+        commandId: crypto.randomUUID(),
+        kind: "question.vote.toggle",
+        questionId,
+      },
+    ).catch((reason: unknown) => {
+      setError(reason instanceof Error ? reason.message : "추천을 반영하지 못했습니다");
+    });
   };
 
   if (session) {

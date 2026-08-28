@@ -23,6 +23,8 @@ export const Studio = styled.section`
 export const Muted = styled.p`
   margin: 0 0 28px;
   color: ${({ theme }) => theme.colors.gray70};
+  overflow-wrap: break-word;
+  word-break: keep-all;
 `;
 
 export const Panel = styled.section`

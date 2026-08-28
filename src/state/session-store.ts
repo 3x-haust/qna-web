@@ -14,7 +14,7 @@ type SessionStore = {
   session: SessionState | null;
   connectionStatus: "idle" | "connecting" | "connected" | "failed";
   setConnectionStatus: (status: SessionStore["connectionStatus"]) => void;
-  startHost: (title: string) => void;
+  startHost: (title: string, teacherId: string) => void;
   joinSnapshot: (session: SessionState) => void;
   submitQuestion: (
     participantId: string,
@@ -38,10 +38,10 @@ const initial = {
 export const useSessionStore = create<SessionStore>((set) => ({
   ...initial,
   setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
-  startHost: (title) =>
+  startHost: (title, teacherId) =>
     set({
       role: "teacher",
-      session: createSession(crypto.randomUUID(), "teacher", title.trim()),
+      session: createSession(crypto.randomUUID(), teacherId, title.trim()),
       connectionStatus: "idle",
     }),
   joinSnapshot: (session) =>

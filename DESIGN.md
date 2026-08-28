@@ -83,6 +83,7 @@ Base unit: 4px. Preferred steps are 8, 12, 16, 20, 24, 32, 40, 48, and 64px.
 
 - Micro feedback: 150ms ease-out.
 - Standard transitions: 240ms ease-in-out.
+- Question composer morph: 320ms `cubic-bezier(0.22, 1, 0.36, 1)`.
 - Only `transform` and `opacity` animate.
 - Every interactive control has hover, active, and focus-visible feedback.
 - Non-essential motion is disabled by `prefers-reduced-motion`.

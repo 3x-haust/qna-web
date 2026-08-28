@@ -1,7 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import type { SessionState } from "@/domain/session";
 import {
@@ -12,6 +20,9 @@ import {
   CharacterCount,
   Composer,
   ComposerFooter,
+  ComposerMotionStyles,
+  ComposerSubmit,
+  ComposerSurface,
   EmptyState,
   Feed,
   IdentityButton,
@@ -23,7 +34,7 @@ import {
   SortTabs,
   Vote,
 } from "@/features/session/question-feed.styles";
-import { PrimaryButton, TextArea } from "@/ui/primitives";
+import { TextArea } from "@/ui/primitives";
 
 type QuestionFeedProps = {
   questions: SessionState["questions"];
@@ -68,6 +79,24 @@ export function QuestionFeed({
     [questions, sort],
   );
 
+  const changeExpanded = useCallback(
+    (nextExpanded: boolean) => {
+      if (nextExpanded === expanded) return;
+      const update = () => {
+        flushSync(() => setExpanded(nextExpanded));
+      };
+      const reduceMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      if (reduceMotion || !document.startViewTransition) {
+        update();
+        return;
+      }
+      document.startViewTransition(update);
+    },
+    [expanded],
+  );
+
   const submit = () => {
     if (
       !onSubmit ||
@@ -80,7 +109,7 @@ export function QuestionFeed({
     submitLocked.current = true;
     onSubmit(text, anonymous, authorName, draftCommandId.current);
     setText("");
-    setExpanded(false);
+    changeExpanded(false);
   };
 
   useLayoutEffect(() => {
@@ -99,17 +128,19 @@ export function QuestionFeed({
     const collapseOnOutsidePointer = (event: PointerEvent) => {
       const composer = composerRef.current;
       if (event.target instanceof Node && composer && !composer.contains(event.target)) {
-        setExpanded(false);
+        changeExpanded(false);
       }
     };
     document.addEventListener("pointerdown", collapseOnOutsidePointer, true);
     return () => {
       document.removeEventListener("pointerdown", collapseOnOutsidePointer, true);
     };
-  }, [expanded]);
+  }, [changeExpanded, expanded]);
 
   return (
-    <Feed data-testid="question-feed">
+    <>
+      <ComposerMotionStyles />
+      <Feed data-testid="question-feed">
       {onSubmit && (
         <Composer
           ref={composerRef}
@@ -121,6 +152,10 @@ export function QuestionFeed({
             submit();
           }}
         >
+          <ComposerSurface
+            aria-hidden="true"
+            data-testid="question-composer-surface"
+          />
           <TextArea
             ref={textareaRef}
             aria-label="질문 작성"
@@ -141,7 +176,7 @@ export function QuestionFeed({
                 event.currentTarget.scrollHeight,
               )}px`;
             }}
-            onFocus={() => setExpanded(true)}
+            onFocus={() => changeExpanded(true)}
           />
           {expanded && (
             <CharacterCount
@@ -182,13 +217,13 @@ export function QuestionFeed({
                 </IdentityButton>
               </IdentityToggle>
             )}
-            <PrimaryButton
+            <ComposerSubmit
               type="submit"
               disabled={!text.trim() || remainingCharacters < 0}
             >
               보내기
               <Image src="/assets/send.svg" alt="" width={16} height={16} />
-            </PrimaryButton>
+            </ComposerSubmit>
           </ComposerFooter>
         </Composer>
       )}
@@ -268,6 +303,7 @@ export function QuestionFeed({
           })}
         </QuestionList>
       )}
-    </Feed>
+      </Feed>
+    </>
   );
 }

@@ -3,6 +3,26 @@ import { expect, test } from "@playwright/test";
 test("archive returns home immediately while GitDB writes in background", async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "mirim_oauth_tokens",
+      JSON.stringify({
+        access_token: "teacher-access-token",
+        refresh_token: "teacher-refresh-token",
+        expires_in: 3600,
+        issued_at: new Date().toISOString(),
+      }),
+    );
+    window.localStorage.setItem(
+      "mirim_oauth_user",
+      JSON.stringify({
+        id: "teacher-user-42",
+        email: "teacher@e-mirim.hs.kr",
+        nickname: "김미림 선생님",
+        role: "TEACHER",
+      }),
+    );
+  });
   const writes: Array<{ url: string; body: string | null }> = [];
   const archiveRequested = Promise.withResolvers<void>();
   const archiveResponse = Promise.withResolvers<void>();
@@ -32,6 +52,9 @@ test("archive returns home immediately while GitDB writes in background", async 
   await expect(page).toHaveURL("/home");
   expect(writes).toHaveLength(1);
   expect(writes[0]?.body).toContain("분수의 덧셈");
+  expect(JSON.parse(writes[0]?.body ?? "{}").teacherId).toBe(
+    "teacher-user-42",
+  );
   archiveResponse.resolve();
   await page.screenshot({
     path: "test-results/archive-immediate-home.png",

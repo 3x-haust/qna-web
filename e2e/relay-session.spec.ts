@@ -1,4 +1,72 @@
-import { expect, test } from "@playwright/test";
+import {
+  expect,
+  test,
+  type BrowserContext,
+  type Page,
+} from "@playwright/test";
+
+async function authenticateTeacher(context: BrowserContext) {
+  await context.addInitScript(() => {
+    window.localStorage.setItem(
+      "mirim_oauth_tokens",
+      JSON.stringify({
+        access_token: "teacher-access-token",
+        refresh_token: "teacher-refresh-token",
+        expires_in: 3600,
+        issued_at: new Date().toISOString(),
+      }),
+    );
+    window.localStorage.setItem(
+      "mirim_oauth_user",
+      JSON.stringify({
+        id: "teacher-user-42",
+        email: "teacher@e-mirim.hs.kr",
+        nickname: "김미림 선생님",
+        role: "TEACHER",
+      }),
+    );
+  });
+}
+
+async function armComposerMotion(page: Page) {
+  await page.evaluate(() => {
+    const startViewTransition = document.startViewTransition.bind(document);
+    const motion = Promise.withResolvers<number[]>();
+    (
+      globalThis as typeof globalThis & {
+        __qnaComposerMotion?: Promise<number[]>;
+      }
+    ).__qnaComposerMotion = motion.promise;
+    document.startViewTransition = (update) => {
+      const transition = startViewTransition(update);
+      void transition.ready.then(() => {
+        motion.resolve(
+          document
+            .getAnimations()
+            .map((animation) =>
+              Number(animation.effect?.getTiming().duration ?? 0),
+            ),
+        );
+      });
+      return transition;
+    };
+  });
+}
+
+async function readComposerMotion(page: Page) {
+  const durations = await page.evaluate(
+    () =>
+      (
+        globalThis as typeof globalThis & {
+          __qnaComposerMotion?: Promise<number[]>;
+        }
+      ).__qnaComposerMotion,
+  );
+  if (!durations) {
+    throw new Error("question composer motion was not started");
+  }
+  return durations;
+}
 
 test("teacher is authoritative over a relayed session", async ({ browser }) => {
   const teacherContext = await browser.newContext();
@@ -7,6 +75,7 @@ test("teacher is authoritative over a relayed session", async ({ browser }) => {
     viewport: { width: 390, height: 844 },
   });
   const identityStudentContext = await browser.newContext();
+  await authenticateTeacher(teacherContext);
   await identityStudentContext.route(
     "**/api/mirim/api/v1/oauth/authorize**",
     async (route) => {
@@ -126,7 +195,10 @@ test("teacher is authoritative over a relayed session", async ({ browser }) => {
     "overflow-y",
     "hidden",
   );
+  await armComposerMotion(linkedStudent);
   await linkedStudent.getByLabel("질문 작성", { exact: true }).focus();
+  const expandMotionDurations = await readComposerMotion(linkedStudent);
+  expect(expandMotionDurations.some((duration) => duration >= 300)).toBe(true);
   await expect(linkedStudent.getByTestId("question-composer")).toHaveAttribute(
     "data-expanded",
     "true",
@@ -135,6 +207,9 @@ test("teacher is authoritative over a relayed session", async ({ browser }) => {
     "outline-style",
     "none",
   );
+  await expect(
+    linkedStudent.getByTestId("question-composer-surface"),
+  ).toHaveCSS("border-color", "rgb(38, 210, 154)");
   const overLimitQuestion = [
     ..."가".repeat(9).split(""),
   ].map(() => "가".repeat(19)).concat("가".repeat(20)).join("\n");
@@ -159,7 +234,10 @@ test("teacher is authoritative over a relayed session", async ({ browser }) => {
       (textarea) => textarea.scrollHeight <= textarea.clientHeight,
     ),
   ).toBe(true);
+  await armComposerMotion(linkedStudent);
   await linkedStudent.getByRole("heading", { name: "분수의 덧셈" }).click();
+  const collapseMotionDurations = await readComposerMotion(linkedStudent);
+  expect(collapseMotionDurations.some((duration) => duration >= 300)).toBe(true);
   await expect(linkedStudent.getByTestId("question-composer")).toHaveAttribute(
     "data-expanded",
     "false",
@@ -231,6 +309,7 @@ test("teacher is authoritative over a relayed session", async ({ browser }) => {
 test("questions work through HTTP when WebRTC is unavailable", async ({ browser }) => {
   const teacherContext = await browser.newContext();
   const studentContext = await browser.newContext();
+  await authenticateTeacher(teacherContext);
   const disableWebRtc = () => {
     Object.defineProperty(globalThis, "RTCPeerConnection", {
       configurable: true,

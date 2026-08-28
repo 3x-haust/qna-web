@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { queueArchiveSession } from "@/archive/archive-client";
+import { useAuth } from "@/auth/auth-provider";
 import { QuestionFeed } from "@/features/session/question-feed";
 import {
   closeSignalingSession,
@@ -33,6 +34,7 @@ import { Field, PrimaryButton } from "@/ui/primitives";
 
 export function HostStudio() {
   const router = useRouter();
+  const { user } = useAuth();
   const signaling = useRef<SignalingSession | null>(null);
   const signalingAbort = useRef<AbortController | null>(null);
   const joinedStudents = useRef(new Set<string>());
@@ -132,9 +134,13 @@ export function HostStudio() {
       setError("세션 이름을 입력해 주세요");
       return;
     }
+    if (!user) {
+      setError("세션을 만들려면 로그인이 필요합니다");
+      return;
+    }
     try {
       const created = await createSignalingSession();
-      startHost(title);
+      startHost(title, user.id);
       signaling.current = created;
       joinedStudents.current.clear();
       const controller = new AbortController();
